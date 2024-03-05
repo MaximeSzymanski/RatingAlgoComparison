@@ -117,7 +117,8 @@ class PPO(nn.Module):
             nn.Linear(128, 1)
         )
         self.number_epochs = 0
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0")
+        print(self.device)
         self.to(self.device)
         self.optimizer = Adam(self.parameters(), lr=0.0001)
         self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=2048, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=2048)
@@ -144,8 +145,8 @@ class PPO(nn.Module):
         logits = self.actor(x)
         value = self.critic(x)
         if action_mask is not None:
+            
             logits = logits * action_mask
-
         dist = Categorical(logits)
 
         return dist, value
@@ -153,6 +154,7 @@ class PPO(nn.Module):
     def get_action(self, obs, action_mask = None, deterministic=False):
         with torch.no_grad():
             obs = torch.from_numpy(obs).float().to(self.device)
+            action_mask = torch.from_numpy(action_mask).float().to(self.device)
             dist, value = self.forward(obs,action_mask)
             if deterministic:
                 action = torch.argmax(dist.probs).unsqueeze(0)
@@ -231,6 +233,7 @@ class PPO(nn.Module):
                 advantages_batch = advantages[indice_batch]
                 normalized_advantages = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
                 self.number_epochs += 1
+
                 new_dist, new_values = self.forward(states[indice_batch],actions_mask[indice_batch])
                 log_pi = new_dist.log_prob(actions[indice_batch])
 
