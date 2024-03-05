@@ -8,34 +8,35 @@ import torch.nn.functional as F
 
 
 
-class Agent(nn.Module):
+class PPO(nn.Module):
     class ExperienceReplay():
-        def __init__(self, minibatch_size, buffer_size, state_size, num_workers=2, action_size=6, horizon=128):
+        def __init__(self, minibatch_size, buffer_size, state_size, num_workers=1, action_size=6, horizon=128):
             self.minibatch_size = minibatch_size
             self.buffer_size = buffer_size
             self.state_size = state_size
-
+            self.action_size = action_size
             self.num_worker = num_workers
             self.horizon = horizon
-            self.reset_buffer(horizon, state_size)
+            self.reset_buffer(horizon, state_size, action_size=action_size)
 
-        def reset_buffer(self, horizon, state_size):
+        def reset_buffer(self, horizon, state_size, action_size=6):
             transformed_buffer_size = (horizon,) + (self.num_worker,)
             buffer_state_size = transformed_buffer_size + state_size
+            mask_size = (horizon,) + (self.num_worker,) + (action_size,)
 
             self.actions = np.empty(transformed_buffer_size, dtype=np.int32)
-            self.actions_mask = np.empty(transformed_buffer_size, dtype=np.int32)
+            self.actions_mask = np.empty(mask_size, dtype=np.int32)
             self.rewards = np.empty(transformed_buffer_size, dtype=np.float32)
             self.states = np.empty(buffer_state_size, dtype=np.float32)
             self.next_states = np.empty(buffer_state_size, dtype=np.float32)
             self.dones = np.empty(transformed_buffer_size, dtype=np.int32)
-            self.olg_log_probs = np.empty(transformed_buffer_size, dtype=np.float32)
+            self.old_log_probs = np.empty(transformed_buffer_size, dtype=np.float32)
             self.advantages = np.empty(transformed_buffer_size, dtype=np.float32)
             self.values = np.empty(transformed_buffer_size, dtype=np.float32)
             self.head = 0
             self.size = 0
 
-        def add_step(self, state, action, reward, next_state, done, value, olg_log_prob,action_mask=None):
+        def add_step(self, state, action, reward, next_state, done, value, old_log_prob,action_mask=None):
             # assert the buffer is not full
             assert self.size < self.buffer_size, "Buffer is full"
             if action_mask is None:
@@ -44,7 +45,7 @@ class Agent(nn.Module):
             self.actions[self.head] = action
             value = np.squeeze(value)
             self.values[self.head] = value
-            self.olg_log_probs[self.head] = olg_log_prob
+            self.old_log_probs[self.head] = old_log_prob
             self.rewards[self.head] = reward
             self.next_states[self.head] = next_state
             self.dones[self.head] = done
@@ -60,48 +61,66 @@ class Agent(nn.Module):
             indices = np.random.randint(0, self.size, size=self.minibatch_size)
             # return the minibatch
             return self.states[indices], self.actions[indices], self.rewards[indices], self.next_states[indices], \
-                self.dones[indices], self.olg_log_probs[indices], self.values[indices], self.actions_mask[indices]
+                self.dones[indices], self.old_log_probs[indices], self.values[indices], self.actions_mask[indices]
 
         def flatten_buffer(self):
             # flatten the buffer
             self.states = self.states.reshape(-1, self.states.shape[-1])
             self.actions = self.actions.flatten()
-            self.actions_mask = self.actions_mask.flatten()
+            self.actions_mask = self.actions_mask.reshape(-1, self.actions_mask.shape[-1])
             self.rewards = self.rewards.flatten()
             self.next_states = self.next_states.reshape(-1,self.next_states.shape[-1])
             self.dones = self.dones.flatten()
-            self.olg_log_probs = self.olg_log_probs.flatten()
+            self.old_log_probs = self.old_log_probs.flatten()
             self.values = self.values.flatten()
             self.advantages = self.advantages.flatten()
 
 
 
         def clean_buffer(self):
-            self.reset_buffer(self.horizon, self.state_size)
+            self.reset_buffer(self.horizon, self.state_size,self.action_size)
 
+        def can_train(self):
+            return self.size >= self.horizon
         def __len__(self):
             return self.size
-    def __init__(self, state_size, action_size, num_workers=8, num_steps=128, batch_size=256):
-        super(Agent, self).__init__()
+    def __init__(self, state_size, action_size, num_workers=1, num_steps=128, batch_size=256):
+        """
+        This class implements the Proximal Policy Optimization algorithm
+        :param state_size: The size of the state space
+        :param action_size: The size of the action space
+        :param num_workers: The number of workers
+        :param num_steps: The number of steps
+        :param batch_size: The batch size
+        """
+        super(PPO, self).__init__()
 
 
         self.actor = nn.Sequential(
-            nn.Linear(state_size, 256),
+            nn.Linear(state_size, 512),
             nn.ReLU(),
-            nn.Linear(256, action_size),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, action_size),
             nn.Softmax(dim=-1)
 
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_size, 256),
+            nn.Linear(state_size, 512),
             nn.ReLU(),
-            nn.Linear(256, 1)
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1)
         )
         self.number_epochs = 0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
         self.optimizer = Adam(self.parameters(), lr=0.0001)
-        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=10000, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=num_steps)
+        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=2048, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=2048)
 
 
         self.num_workers = num_workers
@@ -133,6 +152,7 @@ class Agent(nn.Module):
 
     def get_action(self, obs, action_mask = None, deterministic=False):
         with torch.no_grad():
+            obs = torch.from_numpy(obs).float().to(self.device)
             dist, value = self.forward(obs,action_mask)
             if deterministic:
                 action = torch.argmax(dist.probs).unsqueeze(0)
@@ -187,7 +207,7 @@ class Agent(nn.Module):
         # convert the data to torch tensors
         states = torch.from_numpy( self.experience_replay.states).to( self.device)
         actions = torch.from_numpy( self.experience_replay.actions).to( self.device)
-        old_log_probs = torch.from_numpy( self.experience_replay.olg_log_probs).to( self.device).detach()
+        old_log_probs = torch.from_numpy(self.experience_replay.old_log_probs).to(self.device).detach()
 
         advantages = torch.from_numpy(advantages).to( self.device)
         values = torch.from_numpy( self.experience_replay.values).to( self.device)
@@ -222,7 +242,7 @@ class Agent(nn.Module):
 
                 entropy_loss = new_dist.entropy().mean()
                 #writer.add_scalar('entropy', entropy_loss, agent.number_epochs)
-                loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
+                loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
