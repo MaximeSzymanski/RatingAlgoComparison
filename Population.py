@@ -8,7 +8,7 @@ class Population():
     def __init__(self, policy_type, env : AECEnv, num_agents) -> None:
         self.agents : list[Agent] = []
         self.env : AECEnv = env
-        self.state_size = 18
+        self.state_size = 84
         
         self.action_size = env.action_space("player_1").n
         for i in range(num_agents):
@@ -23,21 +23,21 @@ class Population():
         random_agent_win = []
         opponent_win = []
         draws = []
-
+        past_state = None
+        past_action = None
+        past_reward = None
+        past_mask = None
+        past_value = None
+        past_log_prob = None
+        past_done = None
+        
         for fight in range(num_fights):
             # our agent is player 1 and the random bot is player 2
-            past_state = None
-            past_action = None
-            past_reward = None
-            past_mask = None
-            past_value = None
-            past_log_prob = None
-            past_done = None
+            
             self.env.reset(seed=42)
             current_episode_reward = 0
             current_episode_reward_opponent = 0
             draw_count = 0
-
             for agent in self.env.agent_iter():
                 # check if the agent can train
                 if agent == "player_1" and random_agent.policy.experience_replay.can_train():
@@ -52,7 +52,7 @@ class Population():
                         next_state = observation["observation"]
                         # flatten
                         next_state = next_state.flatten()
-                        
+
                         random_agent.policy.experience_replay.add_step(state=past_state,
                                                                     action=past_action,
                                                                     reward=past_reward,
@@ -62,13 +62,14 @@ class Population():
                                                                     value=past_value,
                                                                     action_mask=past_mask)
 
-                    past_state = observation["observation"]
+                    past_state = observation["observation"].flatten()
                     past_reward = reward
                 else:
                     current_episode_reward_opponent += reward
                     
                 if termination or truncation:
                     action = None
+
                 else:
                     mask = observation["action_mask"]
                     # this is where you would insert your policy
@@ -79,6 +80,7 @@ class Population():
                         past_action = action
                         past_mask = mask
                         past_state = state
+
                         past_value = value
                         past_log_prob = log_prob
                         past_done = termination or truncation
@@ -212,5 +214,5 @@ class Population():
         plt.legend()
         plt.title("Win Rate Over Time")
         plt.show()
-texas_population = Population("PPO", tictactoe_v3.env(), 1)
+texas_population = Population("PPO", connect_four_v3.env(), 1)
 texas_population.fight_agent_against_random()
