@@ -4,8 +4,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import Categorical
 import torch.nn.functional as F
-
-
+from torch.utils.tensorboard import SummaryWriter
 
 
 class PPO(nn.Module):
@@ -84,7 +83,7 @@ class PPO(nn.Module):
             return self.size >= self.horizon
         def __len__(self):
             return self.size
-    def __init__(self, state_size, action_size, num_workers=1, num_steps=128, batch_size=256):
+    def __init__(self, state_size, action_size, num_steps, batch_size,env_name='connect_four_v3', num_workers=1):
         """
         This class implements the Proximal Policy Optimization algorithm
         :param state_size: The size of the state space
@@ -97,33 +96,26 @@ class PPO(nn.Module):
 
 
         self.actor = nn.Sequential(
-            nn.Linear(state_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(state_size, 128),
             nn.ReLU(),
             nn.Linear(128, action_size),
             nn.Softmax(dim=-1)
 
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(state_size, 128),
             nn.ReLU(),
             nn.Linear(128, 1)
         )
         self.number_epochs = 0
         self.device = torch.device("cuda:0")
-        print(self.device)
+        print(self.parameters())
         self.to(self.device)
-        self.optimizer = Adam(self.parameters(), lr=0.0001)
-        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=2048, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=2048)
+        self.optimizer = Adam(self.parameters(), lr=0.001)
 
+        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=num_steps)
 
+        self.writer = SummaryWriter(log_dir=env_name)
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = batch_size
@@ -157,7 +149,7 @@ class PPO(nn.Module):
             action_mask = torch.from_numpy(action_mask).float().to(self.device)
             dist, value = self.forward(obs,action_mask)
             if deterministic:
-                action = torch.argmax(dist.probs).unsqueeze(0)
+                action = torch.argmax(dist.probs)
 
             else:
                 action = dist.sample()
@@ -168,7 +160,7 @@ class PPO(nn.Module):
 
     def decay_learning_rate(self, optimizer, decay_rate=0.99):
         print("Decaying learning rate")
-        #writer.add_scalar("Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
+        self.writer.add_scalar("Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
         for param_group in optimizer.param_groups:
             param_group['lr'] *= decay_rate
 
@@ -194,7 +186,8 @@ class PPO(nn.Module):
                 last_advantage = delta + gamma * lamda * last_advantage
                 advantages[i] = last_advantage
                 last_value = values[i]
-
+            
+            
             self.experience_replay.advantages[:, worker] = advantages
         pass
         self.experience_replay.flatten_buffer()
@@ -225,7 +218,7 @@ class PPO(nn.Module):
 
         indices = np.arange(numer_of_samples)
         np.random.shuffle(indices)
-        for _ in range(4):
+        for _ in range(10):
             for batch_index in range(number_mini_batch):
                 start = batch_index *  self.experience_replay.minibatch_size
                 end = (batch_index + 1) *  self.experience_replay.minibatch_size
@@ -244,8 +237,11 @@ class PPO(nn.Module):
                 critic_loss = F.mse_loss(new_values.squeeze(), returns[indice_batch])
 
                 entropy_loss = new_dist.entropy().mean()
-                #writer.add_scalar('entropy', entropy_loss, agent.number_epochs)
-                loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy_loss
+                self.writer.add_scalar('entropy', entropy_loss, self.number_epochs)
+                self.writer.add_scalar('critic', critic_loss, self.number_epochs)
+                self.writer.add_scalar('actor', actor_loss, self.number_epochs)
+
+                loss = actor_loss + 0.5 * critic_loss - 0.00 * entropy_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
