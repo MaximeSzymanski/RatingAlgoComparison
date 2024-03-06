@@ -98,6 +98,8 @@ class PPO(nn.Module):
         self.actor = nn.Sequential(
             nn.Linear(state_size, 128),
             nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, action_size),
             nn.Softmax(dim=-1)
 
@@ -105,17 +107,19 @@ class PPO(nn.Module):
         self.critic = nn.Sequential(
             nn.Linear(state_size, 128),
             nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, 1)
         )
         self.number_epochs = 0
         self.device = torch.device("cuda:0")
         print(self.parameters())
         self.to(self.device)
-        self.optimizer = Adam(self.parameters(), lr=0.0003)
+        self.optimizer = Adam(self.parameters(), lr=3e-4)
 
         self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=num_steps)
 
-        self.writer = SummaryWriter(log_dir=env_name)
+        self.writer = SummaryWriter(log_dir=env_name+" PPO")
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = batch_size

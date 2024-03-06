@@ -10,20 +10,306 @@ from typing import List
 
 
 class Population():
-    def __init__(self, policy_type, env : AECEnv, num_agents) -> None:
+    def __init__(self,  env : AECEnv, num_agents) -> None:
         self.agents : list[Agent] = []
         self.env : AECEnv = env
         self.state_size = 84
         
         self.action_size = env.action_space("player_1").n
-        for i in range(num_agents):
+        
 
-            self.agents.append(Agent(policy_type, self.state_size, self.action_size))
+    def add_agent(self,policy_type):
+        self.agents.append(Agent(policy_type, self.state_size, self.action_size))
 
+    def train_fight_1vs1(self,num_fights=1000,agent_1_index=0, agent_2_index=1):
+        """
+        Simulates fights between a player agent and a randomly selected opponent agent.
 
-    #def fight_1vs1(self,num_fights,agent_1_index, agent_2_index):
+        Parameters:
+            num_fights (int): Number of fights to simulate. Defaults to 2000.
+        """
+        # get a random agent
+        agent_1 : Agent = self.agents[agent_1_index]
+        agent_2 : Agent = self.agents[agent_2_index]
+        
+        agent_1_win = []
+        agent_2_win = []
+        draws = []
+        past_state_agent_1 = None
+        past_action_agent_1 = None
+        past_reward_agent_1 = None
+        past_mask_agent_1 = None
+        past_value_agent_1 = None
+        past_log_prob_agent_1 = None
+        past_done_agent_1 = None
 
+        past_state_agent_2 = None
+        past_action_agent_2 = None
+        past_reward_agent_2 = None
+        past_mask_agent_2 = None
+        past_value_agent_2= None
+        past_log_prob_agent_2 = None
+        past_done_agent_2 = None
+        
+        for fight in range(num_fights):
+            # our agent is player 1 and the random bot is player 2
+            
+            self.env.reset(seed=42)
+            current_episode_reward_agent_1 = 0
+            current_episode_reward_agent_2 = 0
+            draw_count = 0
+            step = 0
+            update_freq = 4
+            for agent in self.env.agent_iter():
+                # check if the agent can train
+                if agent == "player_0" and agent_1.policy.experience_replay.can_train() and step % update_freq == 0:
+                    agent_1.policy.train_agent()
+                    pass
+                elif agent == "player_1" and agent_2.policy.experience_replay.can_train() and step % update_freq == 0:
+                    #agent_2.policy.train_agent()
+                    pass
 
+                    
+                observation, reward, termination, truncation, info = self.env.last()
+                
+                # check if the agent is the random agent
+                if agent == "player_0":
+                    if past_state_agent_1 is not None and past_action_agent_1 is not None and past_reward_agent_1 is not None and past_mask_agent_1 is not None:
+                        next_state = observation["observation"]
+                        # flatten
+                        next_state = next_state.flatten()
+                        if agent_1.policy_type == "PPO":
+                            agent_1.policy.experience_replay.add_step(state=past_state_agent_1,
+                                                                        action=past_action_agent_1,
+                                                                        reward=past_reward_agent_1,
+                                                                        next_state=next_state,
+                                                                        done=past_done_agent_1,
+                                                                        old_log_prob=past_log_prob_agent_1,
+                                                                        value=past_value_agent_1,
+                                                                        action_mask=past_mask_agent_1)
+                        elif agent_1.policy_type == "DQN":
+                           
+                            agent_1.policy.experience_replay.add_step(state=past_state_agent_1,action=past_action_agent_1,reward=past_reward_agent_1,
+                                                                next_state=next_state,done=past_done_agent_1,action_mask=past_mask_agent_1)
+                            
+
+                    past_state_agent_1 = observation["observation"].flatten()
+                    past_reward_agent_1 = reward
+                    current_episode_reward_agent_1 += reward
+                elif agent == "player_1":
+                    if past_state_agent_2 is not None and past_action_agent_2 is not None and past_reward_agent_2 is not None and past_mask_agent_2 is not None:
+                        next_state = observation["observation"]
+                        # flatten
+                        next_state = next_state.flatten()
+                        if agent_2.policy_type == "PPO":
+                            """agent_2.policy.experience_replay.add_step(state=past_state_agent_2,
+                                                                        action=past_action_agent_2,
+                                                                        reward=past_reward_agent_2,
+                                                                        next_state=next_state,
+                                                                        done=past_done_agent_2,
+                                                                        old_log_prob=past_log_prob_agent_2,
+                                                                        value=past_value_agent_2,
+                                                                        action_mask=past_mask_agent_2)"""
+                            pass
+                        elif agent_2.policy_type == "DQN":
+                           
+                            agent_2.policy.experience_replay.add_step(state=past_state_agent_2,action=past_action_agent_2,reward=past_reward_agent_2,
+                                                                next_state=next_state,done=past_done_agent_2,action_mask=past_mask_agent_2)
+                            
+
+                    past_state_agent_2 = observation["observation"].flatten()
+                    past_reward_agent_2 = reward
+                    current_episode_reward_agent_2 += reward
+
+                if termination or truncation:
+                    action = None
+
+                else:
+                    mask = observation["action_mask"]
+                    # this is where you would insert your policy
+                    if agent == "player_0":
+                        state = observation["observation"]
+                        state = state.flatten()
+                        if agent_1.policy_type == "PPO":
+                            action, log_prob , value = agent_1.policy.get_action(state, mask)
+                            past_log_prob_agent_1 = log_prob
+                            past_value_agent_1 = value
+                        elif agent_1.policy_type == "DQN":
+                            action = agent_1.policy.act(state=state,mask=mask)
+                        past_action_agent_1 = action
+                        past_mask_agent_1 = mask
+                        past_state_agent_1 = state
+
+                        
+                        
+                        past_done_agent_1 = termination or truncation
+
+                    elif agent == "player_1":
+                        state = observation["observation"]
+                        state = state.flatten()
+                        if agent_2.policy_type == "PPO":
+                            action, log_prob , value = agent_2.policy.get_action(state, mask)
+                            past_log_prob_agent_2 = log_prob
+                            past_value_agent_2 = value
+                        elif agent_2.policy_type == "DQN":
+                            action = agent_2.policy.act(state=state,mask=mask)
+                        past_action_agent_2 = action
+                        past_mask_agent_2 = mask
+                        past_state_agent_2 = state
+
+                        
+                        
+                        past_done_agent_2 = termination or truncation
+                        
+                self.env.step(action)
+            if fight % 100 == 0:
+                if agent_2.policy_type == "DQN":
+                    agent_2.policy.update_epsilon()
+                elif agent_1.policy_type == "DQN":
+                    agent_1.policy.update_epsilon()
+            self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1, current_episode_reward_agent_2)
+            agent_1.policy.writer.add_scalar("Reward",current_episode_reward_agent_1,fight)
+            agent_2.policy.writer.add_scalar("Reward",current_episode_reward_agent_2,fight)
+            self.env.close()
+            
+        # Calculating win rates over time
+        agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(num_fights, agent_1_win, agent_2_win, draws)
+        
+        # Plotting win rates over time
+        self.plot_winrate_over_time_1v1(agent_1, agent_2, agent_1_win, agent_2_win, draws)
+        self.test_fight_1vs1(2000,agent_1_index=agent_1_index,agent_2_index=agent_2_index)
+
+    def test_fight_1vs1(self,num_fights=2000,agent_1_index=0, agent_2_index=1):
+        """
+        Simulates fights between a player agent and a randomly selected opponent agent.
+
+        Parameters:
+            num_fights (int): Number of fights to simulate. Defaults to 2000.
+        """
+        # get a random agent
+        agent_1 : Agent = self.agents[agent_1_index]
+        agent_2 : Agent = self.agents[agent_2_index]
+        
+        agent_1_win = []
+        agent_2_win = []
+        draws = []
+        past_state_agent_1 = None
+        past_action_agent_1 = None
+        past_reward_agent_1 = None
+        past_mask_agent_1 = None
+        past_value_agent_1 = None
+        past_log_prob_agent_1 = None
+        past_done_agent_1 = None
+
+        past_state_agent_2 = None
+        past_action_agent_2 = None
+        past_reward_agent_2 = None
+        past_mask_agent_2 = None
+        past_value_agent_2= None
+        past_log_prob_agent_2 = None
+        past_done_agent_2 = None
+        
+        for fight in range(num_fights):
+            # our agent is player 1 and the random bot is player 2
+            
+            self.env.reset(seed=42)
+            current_episode_reward_agent_1 = 0
+            current_episode_reward_agent_2 = 0
+            draw_count = 0
+            step = 0
+            update_freq = 4
+            for agent in self.env.agent_iter():
+                # check if the agent can train
+            
+                    
+                observation, reward, termination, truncation, info = self.env.last()
+                
+                # check if the agent is the random agent
+                if agent == "player_0":
+                    if past_state_agent_1 is not None and past_action_agent_1 is not None and past_reward_agent_1 is not None and past_mask_agent_1 is not None:
+                        next_state = observation["observation"]
+                        # flatten
+                        next_state = next_state.flatten()
+                        if agent_1.policy_type == "PPO":
+                            agent_1.policy.experience_replay.add_step(state=past_state_agent_1,
+                                                                        action=past_action_agent_1,
+                                                                        reward=past_reward_agent_1,
+                                                                        next_state=next_state,
+                                                                        done=past_done_agent_1,
+                                                                        old_log_prob=past_log_prob_agent_1,
+                                                                        value=past_value_agent_1,
+                                                                        action_mask=past_mask_agent_1)
+                        elif agent_1.policy_type == "DQN":
+                           
+                            agent_1.policy.experience_replay.add_step(state=past_state_agent_1,action=past_action_agent_1,reward=past_reward_agent_1,
+                                                                next_state=next_state,done=past_done_agent_1,action_mask=past_mask_agent_1)
+                            
+
+                    past_state_agent_1 = observation["observation"].flatten()
+                    past_reward_agent_1 = reward
+                    current_episode_reward_agent_1 += reward
+                elif agent == "player_1":
+                    if past_state_agent_2 is not None and past_action_agent_2 is not None and past_reward_agent_2 is not None and past_mask_agent_2 is not None:
+                        next_state = observation["observation"]
+                        # flatten
+                        next_state = next_state.flatten()
+                        
+
+                    past_state_agent_2 = observation["observation"].flatten()
+                    past_reward_agent_2 = reward
+                    current_episode_reward_agent_2 += reward
+
+                if termination or truncation:
+                    action = None
+
+                else:
+                    mask = observation["action_mask"]
+                    # this is where you would insert your policy
+                    if agent == "player_0":
+                        state = observation["observation"]
+                        state = state.flatten()
+                        if agent_1.policy_type == "PPO":
+                            action, log_prob , value = agent_1.policy.get_action(state, mask,deterministic=True)
+                            past_log_prob_agent_1 = log_prob
+                            past_value_agent_1 = value
+                        elif agent_1.policy_type == "DQN":
+                            action = agent_1.policy.act(state=state,mask=mask,deterministic=True)
+                        past_action_agent_1 = action
+                        past_mask_agent_1 = mask
+                        past_state_agent_1 = state
+
+                        
+                        
+                        past_done_agent_1 = termination or truncation
+
+                    elif agent == "player_1":
+                        state = observation["observation"]
+                        state = state.flatten()
+                        if agent_2.policy_type == "PPO":
+                            action, log_prob , value = agent_2.policy.get_action(state, mask,deterministic=True)
+                            past_log_prob_agent_2 = log_prob
+                            past_value_agent_2 = value
+                        elif agent_2.policy_type == "DQN":
+                            action = agent_2.policy.act(state=state,mask=mask,deterministic=True)
+                        past_action_agent_2 = action
+                        past_mask_agent_2 = mask
+                        past_state_agent_2 = state
+
+                        
+                        
+                        past_done_agent_2 = termination or truncation
+                        
+                self.env.step(action)
+            
+            self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1, current_episode_reward_agent_2)
+            
+            self.env.close()
+            
+        # Calculating win rates over time
+        agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(num_fights, agent_1_win, agent_2_win, draws)
+        
+        # Plotting win rates over time
+        self.plot_winrate_over_time_1v1(agent_1, agent_2, agent_1_win, agent_2_win, draws)
     def fight_agent_against_random(self, num_fights : int =2000) -> None:
         """
         Simulates fights between a player agent and a randomly selected opponent agent.
@@ -141,6 +427,26 @@ class Population():
         """
         plt.plot(random_agent_win, label=f"{random_agent.policy_type} Win Rate")
         plt.plot(opponent_win, label="Opponent Win Rate")
+        plt.plot(draws, label="Draw Rate")
+        plt.xlabel("Number of Fights")
+        plt.ylabel("Win Rate")
+        plt.legend()
+        plt.title("Win Rate Over Time")
+        plt.show()
+
+    def plot_winrate_over_time_1v1(self, agent_1: Agent,agent_2 : Agent, agent_1_win: List[int], agent_2_win: List[int],
+                            draws: List[int]) -> None:
+        """
+        Plots the win rate over time.
+
+        Parameters:
+            random_agent (Agent): The random agent used in the simulation.
+            random_agent_win (List[int]): List of wins for the random agent.
+            opponent_win (List[int]): List of wins for the opponent agent.
+            draws (List[int]): List of draws.
+        """
+        plt.plot(agent_1_win, label=f"{agent_1.policy_type} Win Rate")
+        plt.plot(agent_2_win, label=f"{agent_2.policy_type} Win Rate")
         plt.plot(draws, label="Draw Rate")
         plt.xlabel("Number of Fights")
         plt.ylabel("Win Rate")
@@ -295,5 +601,9 @@ class Population():
         plt.legend()
         plt.title("Win Rate Over Time")
         plt.show()
-texas_population = Population("DQN", connect_four_v3.env(), 1)
-texas_population.fight_agent_against_random()
+texas_population = Population(connect_four_v3.env(), 1)
+texas_population.add_agent("DQN")
+texas_population.add_agent("PPO")
+
+
+texas_population.train_fight_1vs1()
