@@ -1,6 +1,7 @@
 from Agent import Agent
 import numpy as np
 from models.PPO import PPO
+from models.DQN import DQN
 from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3,tictactoe_v3
 import matplotlib.pyplot as plt
@@ -16,7 +17,9 @@ class Population():
             self.agents.append(Agent(policy_type, self.state_size, self.action_size))
 
 
-    def fight_agent_against_random(self, num_fights=10000):
+    
+
+    def fight_agent_against_random(self, num_fights=2000):
         # get a random agent
         random_agent : Agent = self.agents[np.random.randint(len(self.agents))]
         print("Random agent rating: ", random_agent.rating)
@@ -38,10 +41,11 @@ class Population():
             current_episode_reward = 0
             current_episode_reward_opponent = 0
             draw_count = 0
+            step = 0
+            update_freq = 4
             for agent in self.env.agent_iter():
                 # check if the agent can train
-                if agent == "player_1" and random_agent.policy.experience_replay.can_train():
-                    print("Training agent", "episode: ", fight, "reward: ", current_episode_reward)
+                if agent == "player_1" and random_agent.policy.experience_replay.can_train() and step % update_freq == 0:
                     random_agent.policy.train_agent()
                     
                 observation, reward, termination, truncation, info = self.env.last()
@@ -52,18 +56,24 @@ class Population():
                         next_state = observation["observation"]
                         # flatten
                         next_state = next_state.flatten()
-
-                        random_agent.policy.experience_replay.add_step(state=past_state,
-                                                                    action=past_action,
-                                                                    reward=past_reward,
-                                                                    next_state=next_state,
-                                                                    done=past_done,
-                                                                    old_log_prob=past_log_prob,
-                                                                    value=past_value,
-                                                                    action_mask=past_mask)
+                        if random_agent.policy_type == "PPO":
+                            random_agent.policy.experience_replay.add_step(state=past_state,
+                                                                        action=past_action,
+                                                                        reward=past_reward,
+                                                                        next_state=next_state,
+                                                                        done=past_done,
+                                                                        old_log_prob=past_log_prob,
+                                                                        value=past_value,
+                                                                        action_mask=past_mask)
+                        elif random_agent.policy_type == "DQN":
+                           
+                            random_agent.policy.experience_replay.add_step(state=past_state,action=past_action,reward=past_reward,
+                                                                next_state=next_state,done=past_done,action_mask=past_mask)
+                            
 
                     past_state = observation["observation"].flatten()
                     past_reward = reward
+                    current_episode_reward += reward
                 else:
                     current_episode_reward_opponent += reward
                     
@@ -76,43 +86,39 @@ class Population():
                     if agent == "player_1":
                         state = observation["observation"]
                         state = state.flatten()
-                        action, log_prob , value = random_agent.policy.get_action(state, mask)
+                        if random_agent.policy_type == "PPO":
+                            action, log_prob , value = random_agent.policy.get_action(state, mask)
+                            past_log_prob = log_prob
+                            past_value = value
+                        elif random_agent.policy_type == "DQN":
+                            action = random_agent.policy.act(state=state,mask=mask)
                         past_action = action
                         past_mask = mask
                         past_state = state
 
-                        past_value = value
-                        past_log_prob = log_prob
+                        
+                        
                         past_done = termination or truncation
-                        current_episode_reward += reward
 
                     else:
                         action = self.env.action_space(agent).sample(mask)
                         
                 self.env.step(action)
-            
-            if current_episode_reward > current_episode_reward_opponent:
-                random_agent_win.append(1)
-                opponent_win.append(0)
-                draws.append(0)
-            elif current_episode_reward < current_episode_reward_opponent:
-                random_agent_win.append(0)
-                opponent_win.append(1)
-                draws.append(0)
-            else:
-                random_agent_win.append(0)
-                opponent_win.append(0)
-                draws.append(1)
-                
+            if fight % 20 == 0:
+                random_agent.policy.update_epsilon()
+            self.compute_winner(random_agent_win, opponent_win, draws, current_episode_reward, current_episode_reward_opponent)
+            random_agent.policy.writer.add_scalar("Reward",current_episode_reward,fight)
             self.env.close()
             
         # Calculating win rates over time
-        random_agent_win = np.cumsum(random_agent_win) / (np.arange(num_fights) + 1)
-        opponent_win = np.cumsum(opponent_win) / (np.arange(num_fights) + 1)
-        draws = np.cumsum(draws) / (np.arange(num_fights) + 1)
+        random_agent_win, opponent_win, draws = self.compute_winrate_over_time(num_fights, random_agent_win, opponent_win, draws)
         
         # Plotting win rates over time
-        plt.plot(random_agent_win, label="Random Agent Win Rate")
+        self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
+        self.test_agents()
+
+    def plot_winrate_over_time(self, random_agent, random_agent_win, opponent_win, draws):
+        plt.plot(random_agent_win, label=f"{random_agent.policy_type} Win Rate")
         plt.plot(opponent_win, label="Opponent Win Rate")
         plt.plot(draws, label="Draw Rate")
         plt.xlabel("Number of Fights")
@@ -120,7 +126,26 @@ class Population():
         plt.legend()
         plt.title("Win Rate Over Time")
         plt.show()
-        self.test_agents()
+
+    def compute_winrate_over_time(self, num_fights, random_agent_win, opponent_win, draws):
+        random_agent_win = np.cumsum(random_agent_win) / (np.arange(num_fights) + 1)
+        opponent_win = np.cumsum(opponent_win) / (np.arange(num_fights) + 1)
+        draws = np.cumsum(draws) / (np.arange(num_fights) + 1)
+        return random_agent_win,opponent_win,draws
+
+    def compute_winner(self, random_agent_win, opponent_win, draws, current_episode_reward, current_episode_reward_opponent):
+        if current_episode_reward > current_episode_reward_opponent:
+            random_agent_win.append(1)
+            opponent_win.append(0)
+            draws.append(0)
+        elif current_episode_reward < current_episode_reward_opponent:
+            random_agent_win.append(0)
+            opponent_win.append(1)
+            draws.append(0)
+        else:
+            random_agent_win.append(0)
+            opponent_win.append(0)
+            draws.append(1)
 
     def test_agents(self, num_tests=1000):
         # get a random agent
@@ -160,6 +185,7 @@ class Population():
 
                     past_state = observation["observation"]
                     past_reward = reward
+                    current_episode_reward += reward
                 else:
                     current_episode_reward_opponent += reward
                     
@@ -171,12 +197,16 @@ class Population():
                     if agent == "player_1":
                         state = observation["observation"]
                         state = state.flatten()
-                        action, log_prob , value = random_agent.policy.get_action(state, mask,deterministic=True)
+                        if random_agent.policy_type == "PPO":
+                            action, log_prob , value = random_agent.policy.get_action(state, mask,deterministic=True)
+                            past_log_prob = log_prob
+                            past_value = value
+                        elif random_agent.policy_type == "DQN":
+                            action = random_agent.policy.act(state=state,mask=mask,deterministic=True)
                         past_action = action
                         past_mask = mask
                         past_state = state
-                        past_value = value
-                        past_log_prob = log_prob
+                       
                         past_done = termination or truncation
                         current_episode_reward += reward
 
@@ -206,7 +236,7 @@ class Population():
         draws = np.cumsum(draws) / (np.arange(num_tests) + 1)
         
         # Plotting win rates over time
-        plt.plot(random_agent_win, label="Random Agent Win Rate")
+        plt.plot(random_agent_win, label=f"{random_agent.policy_type} Win Rate")
         plt.plot(opponent_win, label="Opponent Win Rate")
         plt.plot(draws, label="Draw Rate")
         plt.xlabel("Number of Fights")
@@ -214,5 +244,5 @@ class Population():
         plt.legend()
         plt.title("Win Rate Over Time")
         plt.show()
-texas_population = Population("PPO", connect_four_v3.env(), 1)
+texas_population = Population("DQN", connect_four_v3.env(), 1)
 texas_population.fight_agent_against_random()
