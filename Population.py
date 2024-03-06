@@ -128,7 +128,7 @@ class Population():
         self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
         self.test_agents()
 
-     def plot_winrate_over_time(self, random_agent: Agent, random_agent_win: List[int], opponent_win: List[int],
+    def plot_winrate_over_time(self, random_agent: Agent, random_agent_win: List[int], opponent_win: List[int],
                                draws: List[int]) -> None:
         """
         Plots the win rate over time.
