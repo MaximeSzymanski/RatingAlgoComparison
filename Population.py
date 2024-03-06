@@ -5,6 +5,10 @@ from models.DQN import DQN
 from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3,tictactoe_v3
 import matplotlib.pyplot as plt
+from typing import List
+
+
+
 class Population():
     def __init__(self, policy_type, env : AECEnv, num_agents) -> None:
         self.agents : list[Agent] = []
@@ -17,9 +21,16 @@ class Population():
             self.agents.append(Agent(policy_type, self.state_size, self.action_size))
 
 
-    
+    #def fight_1vs1(self,num_fights,agent_1_index, agent_2_index):
 
-    def fight_agent_against_random(self, num_fights=2000):
+
+    def fight_agent_against_random(self, num_fights : int =2000) -> None:
+        """
+        Simulates fights between a player agent and a randomly selected opponent agent.
+
+        Parameters:
+            num_fights (int): Number of fights to simulate. Defaults to 2000.
+        """
         # get a random agent
         random_agent : Agent = self.agents[np.random.randint(len(self.agents))]
         print("Random agent rating: ", random_agent.rating)
@@ -117,7 +128,17 @@ class Population():
         self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
         self.test_agents()
 
-    def plot_winrate_over_time(self, random_agent, random_agent_win, opponent_win, draws):
+     def plot_winrate_over_time(self, random_agent: Agent, random_agent_win: List[int], opponent_win: List[int],
+                               draws: List[int]) -> None:
+        """
+        Plots the win rate over time.
+
+        Parameters:
+            random_agent (Agent): The random agent used in the simulation.
+            random_agent_win (List[int]): List of wins for the random agent.
+            opponent_win (List[int]): List of wins for the opponent agent.
+            draws (List[int]): List of draws.
+        """
         plt.plot(random_agent_win, label=f"{random_agent.policy_type} Win Rate")
         plt.plot(opponent_win, label="Opponent Win Rate")
         plt.plot(draws, label="Draw Rate")
@@ -127,13 +148,37 @@ class Population():
         plt.title("Win Rate Over Time")
         plt.show()
 
-    def compute_winrate_over_time(self, num_fights, random_agent_win, opponent_win, draws):
+    def compute_winrate_over_time(self, num_fights: int, random_agent_win: List[int], opponent_win: List[int],
+                                  draws: List[int]) -> tuple[List[int], List[int], List[int]]:
+        """
+        Computes win rates over time.
+
+        Parameters:
+            num_fights (int): Number of fights.
+            random_agent_win (List[int]): List of wins for the random agent.
+            opponent_win (List[int]): List of wins for the opponent agent.
+            draws (List[int]): List of draws.
+
+        Returns:
+            Tuple of lists containing win rates for the random agent, opponent agent, and draws.
+        """
         random_agent_win = np.cumsum(random_agent_win) / (np.arange(num_fights) + 1)
         opponent_win = np.cumsum(opponent_win) / (np.arange(num_fights) + 1)
         draws = np.cumsum(draws) / (np.arange(num_fights) + 1)
-        return random_agent_win,opponent_win,draws
+        return random_agent_win, opponent_win, draws
 
-    def compute_winner(self, random_agent_win, opponent_win, draws, current_episode_reward, current_episode_reward_opponent):
+    def compute_winner(self, random_agent_win: List[int], opponent_win: List[int], draws: List[int],
+                       current_episode_reward: int, current_episode_reward_opponent: int) -> None:
+        """
+        Computes the winner of a fight.
+
+        Parameters:
+            random_agent_win (List[int]): List of wins for the random agent.
+            opponent_win (List[int]): List of wins for the opponent agent.
+            draws (List[int]): List of draws.
+            current_episode_reward (int): Reward obtained by the player agent.
+            current_episode_reward_opponent (int): Reward obtained by the opponent agent.
+        """
         if current_episode_reward > current_episode_reward_opponent:
             random_agent_win.append(1)
             opponent_win.append(0)
@@ -147,7 +192,13 @@ class Population():
             opponent_win.append(0)
             draws.append(1)
 
-    def test_agents(self, num_tests=1000):
+    def test_agents(self, num_tests: int = 1000) -> None:
+        """
+        Tests the agents against each other.
+
+        Parameters:
+            num_tests (int): Number of tests to conduct. Defaults to 1000.
+        """
         # get a random agent
         random_agent : Agent = self.agents[np.random.randint(len(self.agents))]
         print("Random agent rating: ", random_agent.rating)
