@@ -35,7 +35,7 @@ class PPO(nn.Module):
             self.head = 0
             self.size = 0
 
-        def add_step(self, state, action, reward, next_state, done, value, old_log_prob,action_mask=None):
+        def add_step(self, state, action, reward, next_state, done, value, old_log_prob, action_mask=None):
             # assert the buffer is not full
             assert self.size < self.buffer_size, "Buffer is full"
             if action_mask is None:
@@ -68,22 +68,22 @@ class PPO(nn.Module):
             self.actions = self.actions.flatten()
             self.actions_mask = self.actions_mask.reshape(-1, self.actions_mask.shape[-1])
             self.rewards = self.rewards.flatten()
-            self.next_states = self.next_states.reshape(-1,self.next_states.shape[-1])
+            self.next_states = self.next_states.reshape(-1, self.next_states.shape[-1])
             self.dones = self.dones.flatten()
             self.old_log_probs = self.old_log_probs.flatten()
             self.values = self.values.flatten()
             self.advantages = self.advantages.flatten()
 
-
-
         def clean_buffer(self):
-            self.reset_buffer(self.horizon, self.state_size,self.action_size)
+            self.reset_buffer(self.horizon, self.state_size, self.action_size)
 
         def can_train(self):
             return self.size >= self.horizon
+
         def __len__(self):
             return self.size
-    def __init__(self, state_size, action_size, num_steps, batch_size,env_name='connect_four_v3', num_workers=1):
+
+    def __init__(self, state_size, action_size, num_steps, batch_size, env_name='connect_four_v3', num_workers=1):
         """
         This class implements the Proximal Policy Optimization algorithm
         :param state_size: The size of the state space
@@ -93,7 +93,6 @@ class PPO(nn.Module):
         :param batch_size: The batch size
         """
         super(PPO, self).__init__()
-
 
         self.actor = nn.Sequential(
             nn.Linear(state_size, 128),
@@ -112,14 +111,16 @@ class PPO(nn.Module):
             nn.Linear(128, 1)
         )
         self.number_epochs = 0
-        self.device = torch.device("cuda:0")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print(self.parameters())
         self.to(self.device)
         self.optimizer = Adam(self.parameters(), lr=3e-4)
 
-        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps, state_size=(state_size,), num_workers=num_workers, action_size=action_size, horizon=num_steps)
+        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps,
+                                                       state_size=(state_size,), num_workers=num_workers,
+                                                       action_size=action_size, horizon=num_steps)
 
-        self.writer = SummaryWriter(log_dir=env_name+" PPO")
+        self.writer = SummaryWriter(log_dir=env_name + " PPO")
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = batch_size
@@ -136,22 +137,20 @@ class PPO(nn.Module):
                 nn.init.orthogonal_(m.weight, np.sqrt(2))
                 nn.init.constant_(m.bias, 0)
 
-
-    def forward(self, x,action_mask=None):
+    def forward(self, x, action_mask=None):
         logits = self.actor(x)
         value = self.critic(x)
         if action_mask is not None:
-            
             logits = logits * action_mask
         dist = Categorical(logits)
 
         return dist, value
 
-    def get_action(self, obs, action_mask = None, deterministic=False):
+    def get_action(self, obs, action_mask=None, deterministic=False):
         with torch.no_grad():
             obs = torch.from_numpy(obs).float().to(self.device)
             action_mask = torch.from_numpy(action_mask).float().to(self.device)
-            dist, value = self.forward(obs,action_mask)
+            dist, value = self.forward(obs, action_mask)
             if deterministic:
                 action = torch.argmax(dist.probs)
 
@@ -190,48 +189,45 @@ class PPO(nn.Module):
                 last_advantage = delta + gamma * lamda * last_advantage
                 advantages[i] = last_advantage
                 last_value = values[i]
-            
-            
+
             self.experience_replay.advantages[:, worker] = advantages
         pass
         self.experience_replay.flatten_buffer()
         advantages = self.experience_replay.advantages
         return advantages
 
-
-
     def train_agent(self):
 
         advantages = self.compute_advantages(gamma=0.99, lamda=0.95)
         # convert the data to torch tensors
-        states = torch.from_numpy( self.experience_replay.states).to( self.device)
-        actions = torch.from_numpy( self.experience_replay.actions).to( self.device)
+        states = torch.from_numpy(self.experience_replay.states).to(self.device)
+        actions = torch.from_numpy(self.experience_replay.actions).to(self.device)
         old_log_probs = torch.from_numpy(self.experience_replay.old_log_probs).to(self.device).detach()
 
-        advantages = torch.from_numpy(advantages).to( self.device)
-        values = torch.from_numpy( self.experience_replay.values).to( self.device)
-        actions_mask = torch.from_numpy( self.experience_replay.actions_mask).to( self.device)
+        advantages = torch.from_numpy(advantages).to(self.device)
+        values = torch.from_numpy(self.experience_replay.values).to(self.device)
+        actions_mask = torch.from_numpy(self.experience_replay.actions_mask).to(self.device)
         returns = advantages + values
 
         # split the data into batches
-        numer_of_samples = self.num_steps *  self.experience_replay.num_worker
+        numer_of_samples = self.num_steps * self.experience_replay.num_worker
 
-        number_mini_batch = numer_of_samples //  self.experience_replay.minibatch_size
+        number_mini_batch = numer_of_samples // self.experience_replay.minibatch_size
         assert number_mini_batch > 0, "batch size is too small"
-        assert numer_of_samples %  self.experience_replay.minibatch_size == 0, "batch size is not a multiple of the number of samples"
+        assert numer_of_samples % self.experience_replay.minibatch_size == 0, "batch size is not a multiple of the number of samples"
 
         indices = np.arange(numer_of_samples)
         np.random.shuffle(indices)
         for _ in range(4):
             for batch_index in range(number_mini_batch):
-                start = batch_index *  self.experience_replay.minibatch_size
-                end = (batch_index + 1) *  self.experience_replay.minibatch_size
+                start = batch_index * self.experience_replay.minibatch_size
+                end = (batch_index + 1) * self.experience_replay.minibatch_size
                 indice_batch = indices[start:end]
                 advantages_batch = advantages[indice_batch]
                 normalized_advantages = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
                 self.number_epochs += 1
 
-                new_dist, new_values = self.forward(states[indice_batch],actions_mask[indice_batch])
+                new_dist, new_values = self.forward(states[indice_batch], actions_mask[indice_batch])
                 log_pi = new_dist.log_prob(actions[indice_batch])
 
                 ratio = torch.exp(log_pi - old_log_probs[indice_batch].detach())
@@ -254,4 +250,3 @@ class PPO(nn.Module):
             # agent.decay_learning_rate(optimizer)
 
         # create the dataset
-

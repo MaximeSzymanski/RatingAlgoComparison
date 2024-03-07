@@ -6,8 +6,6 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 
-
-
 class DQN(nn.Module):
     class ExperienceReplay():
 
@@ -48,13 +46,15 @@ class DQN(nn.Module):
 
         def can_train(self):
             return self.size >= self.sample_size
-    def __init__(self,  memory_size, batch_size, gamma, epsilon, epsilon_decay, epsilon_min, lr,state_size, action_size,env_name,seed=0
+
+    def __init__(self, memory_size, batch_size, gamma, epsilon, epsilon_decay, epsilon_min, lr, state_size, action_size,
+                 env_name, seed=0
                  ):
         super(DQN, self).__init__()
-        self.writer = SummaryWriter(log_dir=env_name+" DQN")
+        self.writer = SummaryWriter(log_dir=env_name + " DQN")
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.experience_replay = self.ExperienceReplay(memory_size, batch_size, state_size,action_size)
+        self.experience_replay = self.ExperienceReplay(memory_size, batch_size, state_size, action_size)
         self.gamma = gamma
         self.seed = np.random.seed(seed)
         self.epsilon = epsilon
@@ -65,7 +65,7 @@ class DQN(nn.Module):
         self.Q_value_get = 0
         self.lr = lr
         self.action_size = action_size
-        self.network =nn.Sequential(
+        self.network = nn.Sequential(
             nn.Linear(state_size, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
@@ -81,8 +81,6 @@ class DQN(nn.Module):
         ).to(self.device)
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.loss = nn.MSELoss()
-
-       
 
     def forward(self, x):
         if len(x.shape) == 3:
@@ -126,36 +124,35 @@ class DQN(nn.Module):
 
     def train_agent(self):
 
+        batch_index = np.random.choice((self.experience_replay.size), self.batch_size)
+        state, action, reward, next_state, done, mask = self.experience_replay.sample(batch_index)
+        state = torch.from_numpy(state).float().to(self.device)
+        action = torch.from_numpy(action).long().to(self.device)
+        reward = torch.from_numpy(reward).float().to(self.device)
+        mask = torch.from_numpy(mask).float().to(self.device)
+        next_state = torch.from_numpy(next_state).float().to(self.device)
+        done = torch.from_numpy(done).float().to(self.device)
+        prediction = self.network(state).gather(1, action)
+        with torch.no_grad():
+            target = reward + self.gamma * self.target_network(next_state).detach().max(1)[0].unsqueeze(1) * (1 - done)
+        loss = self.loss(prediction, target)
+        self.writer.add_scalar("Q loss", loss, self.number_update)
+        self.number_update += 1
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.soft_update(0.01)
 
-            batch_index = np.random.choice((self.experience_replay.size), self.batch_size)
-            state, action, reward, next_state, done, mask= self.experience_replay.sample(batch_index)
-            state = torch.from_numpy(state).float().to(self.device)
-            action = torch.from_numpy(action).long().to(self.device)
-            reward = torch.from_numpy(reward).float().to(self.device)
-            mask = torch.from_numpy(mask).float().to(self.device)
-            next_state = torch.from_numpy(next_state).float().to(self.device)
-            done = torch.from_numpy(done).float().to(self.device)
-            prediction = self.network(state).gather(1, action)
-            with torch.no_grad():
-               target = reward + self.gamma * self.target_network(next_state).detach().max(1)[0].unsqueeze(1) * (1 - done)
-            loss = self.loss(prediction, target)
-            self.writer.add_scalar("Q loss",loss,self.number_update)
-            self.number_update +=1 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            self.soft_update(0.01)
     def soft_update(self, tau):
         for target_param, local_param in zip(self.target_network.parameters(), self.network.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
-
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.network.state_dict())
 
     def update_epsilon(self):
-        self.writer.add_scalar("Epsilon",self.epsilon,self.epsilon_update)
-        self.epsilon_update += 1 
+        self.writer.add_scalar("Epsilon", self.epsilon, self.epsilon_update)
+        self.epsilon_update += 1
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     def save(self, path='model.pth'):
@@ -164,6 +161,5 @@ class DQN(nn.Module):
     def load(self, path='model.pth'):
         self.network.load_state_dict(torch.load(path))
         self.target_network.load_state_dict(torch.load(path))
-
 
 

@@ -13,8 +13,8 @@ class Agent():
         else:
             raise ValueError("Policy not found")
         self.policy_type = policy_type
-
+        self.state_size = state_size
+        self.action_size = action_size
         self.rating = 0
-
 
 
