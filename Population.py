@@ -6,18 +6,38 @@ from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3, tictactoe_v3,texas_holdem_v4
 import matplotlib.pyplot as plt
 from typing import List
-
+from utils.plot import plot_winrate_over_time
+from rating.elo import Elo
+from utils.policy import Policy
 
 class Population():
     def __init__(self, env: AECEnv, num_agents) -> None:
         self.agents: list[Agent] = []
         self.env: AECEnv = env
         self.state_size = 72
-
+        self.rating = Elo()
+        self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
 
-    def add_agent(self, policy_type):
-        self.agents.append(Agent(policy_type, self.state_size, self.action_size))
+    def add_agent(self, policy_type : str):
+        self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=len(self.agents)))
+        self.rating.add_player(len(self.agents), self.base_rating)
+
+
+    def training_loop(self):
+        number_round = 1000
+        for round in range(number_round):
+            paired_agents = self.rating.find_similar_elo_pairs()
+            for agent_1, agent_2 in paired_agents:
+                agent_1_win, agent_2_win, draws = self.train_fight_1vs1(agent_1, agent_2)
+                winner = agent_1 if agent_1_win > agent_2_win else agent_2
+                winner_id = winner.id
+                loser = agent_1 if agent_1_win < agent_2_win else agent_2
+                loser_id = loser.id
+                self.rating.update_ratings(winner_id, loser_id)
+            self.rating.plot_elo_distribution(round)
+
+
 
     def train_fight_1vs1(self, num_fights=1000, agent_1_index=0, agent_2_index=1):
         """
@@ -174,9 +194,10 @@ class Population():
         agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(num_fights, agent_1_win, agent_2_win, draws)
 
         # Plotting win rates over time
-        self.plot_winrate_over_time_1v1(agent_1, agent_2, agent_1_win, agent_2_win, draws)
-        self.test_fight_1vs1(2000, agent_1_index=agent_1_index, agent_2_index=agent_2_index)
+        #self.plot_winrate_over_time_1v1(agent_1, agent_2, agent_1_win, agent_2_win, draws)
+        #self.test_fight_1vs1(2000, agent_1_index=agent_1_index, agent_2_index=agent_2_index)
 
+        return agent_1_win, agent_2_win, draws
     def test_fight_1vs1(self, num_fights=2000, agent_1_index=0, agent_2_index=1):
         """
         Simulates fights between a player agent and a randomly selected opponent agent.
@@ -318,7 +339,6 @@ class Population():
         """
         # get a random agent
         random_agent: Agent = self.agents[np.random.randint(len(self.agents))]
-        print("Random agent rating: ", random_agent.rating)
         random_agent_win = []
         opponent_win = []
         draws = []
@@ -413,25 +433,8 @@ class Population():
         # Plotting win rates over time
         #self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
 
-    def plot_winrate_over_time(self, random_agent: Agent, random_agent_win: List[int], opponent_win: List[int],
-                               draws: List[int]) -> None:
-        """
-        Plots the win rate over time.
 
-        Parameters:
-            random_agent (Agent): The random agent used in the simulation.
-            random_agent_win (List[int]): List of wins for the random agent.
-            opponent_win (List[int]): List of wins for the opponent agent.
-            draws (List[int]): List of draws.
-        """
-        plt.plot(random_agent_win, label=f"{random_agent.policy_type} Win Rate")
-        plt.plot(opponent_win, label="Opponent Win Rate")
-        plt.plot(draws, label="Draw Rate")
-        plt.xlabel("Number of Fights")
-        plt.ylabel("Win Rate")
-        plt.legend()
-        plt.title("Win Rate Over Time")
-        plt.show()
+
 
     def plot_winrate_over_time_1v1(self, agent_1: Agent, agent_2: Agent, agent_1_win: List[int], agent_2_win: List[int],
                                    draws: List[int]) -> None:
@@ -444,14 +447,7 @@ class Population():
             opponent_win (List[int]): List of wins for the opponent agent.
             draws (List[int]): List of draws.
         """
-        plt.plot(agent_1_win, label=f"{agent_1.policy_type} Win Rate")
-        plt.plot(agent_2_win, label=f"{agent_2.policy_type} Win Rate")
-        plt.plot(draws, label="Draw Rate")
-        plt.xlabel("Number of Fights")
-        plt.ylabel("Win Rate")
-        plt.legend()
-        plt.title("Win Rate Over Time")
-        plt.show()
+        plot_winrate_over_time(agent_1, agent_1_win, agent_2_win, draws)
 
     def compute_winrate_over_time(self, num_fights: int, random_agent_win: List[int], opponent_win: List[int],
                                   draws: List[int]) -> tuple[List[int], List[int], List[int]]:
@@ -497,7 +493,7 @@ class Population():
             opponent_win.append(0)
             draws.append(1)
 
-    def test_agents(self, num_tests: int = 1000) -> None:
+    def test_agents_against_random(self, num_tests: int = 1000) -> None:
         """
         Tests the agents against each other.
 
@@ -506,7 +502,6 @@ class Population():
         """
         # get a random agent
         random_agent: Agent = self.agents[np.random.randint(len(self.agents))]
-        print("Random agent rating: ", random_agent.rating)
         random_agent_win = []
         opponent_win = []
         draws = []
@@ -601,23 +596,29 @@ class Population():
         representing the mean of all actions played by that agent.
         :argument agents_actions: A list of dictionaries, where each dictionary contains the actions played by an agent.
         """
-
+        agent_type_plotted = dict()
+        for agent_type in agents_type:
+            agent_type_plotted[agent_type] = False
         for (index, agent) , agent_type in zip(enumerate(agent_data), agents_type):
             total_actions = sum(agent.values())
             x_pos = sum((agent[action] / total_actions) * index_action for index_action, action in enumerate(agent.keys()))
             y_pos = max(agent[action] / total_actions for action in agent.keys())
-            if agent_type == "PPO":
-                plt.scatter(x_pos, y_pos, label=f"Agent {index}", color="blue")
-            elif agent_type == "DQN":
-                plt.scatter(x_pos, y_pos, label=f"Agent {index}", color="red")
-
+            color = "blue" if agent_type == "PPO" else "red"
+            if agent_type_plotted[agent_type] == False:
+                plt.scatter(x_pos, y_pos, color=color, label=agent_type)
+                agent_type_plotted[agent_type] = True
+            else:
+                plt.scatter(x_pos, y_pos, color=color)
 
         plt.xlabel("Mean Action Utilization")
         plt.ylabel("Highest Action Percentage")
         plt.grid()
+        plt.legend()
         plt.xticks(np.arange(0, len(agent_data[0]), 1))
         plt.yticks(np.arange(0, 1.1, 0.1))
         plt.title("Strategy Landscape")
+
+
         # save the plot in a folder
         plt.savefig("plots/strategy_landscape_" + str(index_file) + ".png")
         # clear the plot
@@ -633,14 +634,15 @@ for i in range(number_DQN):
 for i in range(number_PPO):
     texas_population.add_agent("PPO")
 #texas_population.fight_agent_against_random(1000)
-list = []
-for num_train in range(10):
-    print(f"Training {num_train} / 10")
+number_train = 50
+for num_train in range(number_train):
+    print(f"Training {num_train} / {number_train}")
+    list = []
     for index_agent, agent in enumerate(texas_population.agents):
         print(f"Agent {index_agent} / {len(texas_population.agents)}")
         # train
-        texas_population.fight_agent_against_random(1000)
-        list.append(texas_population.test_agents(1000))
+        texas_population.fight_agent_against_random(300)
+        list.append(texas_population.test_agents_against_random(100))
     texas_population.plot_strategy_landscape(list, [agent.policy_type for agent in texas_population.agents], num_train)
 #texas_population.add_agent("PPO")
 

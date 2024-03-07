@@ -2,8 +2,9 @@ import numpy as np
 from models.PPO import PPO
 from models.DQN import DQN
 from pettingzoo.utils.env import AECEnv
+
 class Agent():
-    def __init__(self,policy_type,state_size, action_size) -> None:
+    def __init__(self,policy_type,state_size, action_size,id) -> None:
         if policy_type == "PPO":
             self.policy = PPO(state_size=state_size, action_size=action_size,num_steps=2048,
                               batch_size=32,env_name='connect_four_v3')
@@ -15,6 +16,6 @@ class Agent():
         self.policy_type = policy_type
         self.state_size = state_size
         self.action_size = action_size
-        self.rating = 0
+        self.id = id
 
 
