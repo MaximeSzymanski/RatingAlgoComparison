@@ -128,5 +128,5 @@ class Elo:
         plt.ylabel('Frequency')
         plt.title('Elo Rating Distribution')
         # save into file
-        plt.savefig('elo_distribution_round_'+str(round)+'.png')
+        plt.savefig('elo_distrib/elo_distribution_round_'+str(round)+'.png')
         plt.clf()
