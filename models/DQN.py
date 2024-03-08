@@ -51,7 +51,7 @@ class DQN(nn.Module):
                  env_name, seed=0
                  ):
         super(DQN, self).__init__()
-        self.writer = SummaryWriter(log_dir=env_name + " DQN")
+        self.writer = SummaryWriter(log_dir=env_name + "_DQN")
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.experience_replay = self.ExperienceReplay(memory_size, batch_size, state_size, action_size)

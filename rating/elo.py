@@ -12,6 +12,7 @@ class Elo:
         self.k_factor = k_factor
         self.ratings = {}
 
+
     def add_player(self, player_id: int, rating: int = 1500):
         """
         Add a player to the Elo rating system with an initial rating.
@@ -22,6 +23,16 @@ class Elo:
         """
         if player_id not in self.ratings:
             self.ratings[player_id] = rating
+
+    def remove_player(self, player_id: int):
+        """
+        Remove a player from the Elo rating system.
+
+        Parameters:
+        - player_id (int): The unique identifier for the player.
+        """
+        if player_id in self.ratings:
+            del self.ratings[player_id]
 
     def get_rating(self, player_id: int) -> int:
         """

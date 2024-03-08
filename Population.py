@@ -15,17 +15,37 @@ class Population():
     def __init__(self, env: AECEnv, num_agents) -> None:
         self.agents: list[Agent] = []
         self.env: AECEnv = env
-        self.state_size = 72
+        self.state_size = 84
         self.rating = Elo()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
 
-    def add_agent(self, policy_type : str):
+    def add_agent(self, policy_type : str) -> None:
+        """
+        Add an agent to the population.
+        :param policy_type: The type of policy to use for the agent.
+        :return: None
+        """
         self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=len(self.agents)-1))
         self.rating.add_player(len(self.agents)-1, self.base_rating)
 
+    def remove_agent(self, agent: Agent) -> None:
+        """
+        Remove an agent from the population.
+        :param agent: The agent to remove.
+        :return: None
+        """
+        self.rating.remove_player(agent.id)
+        self.agents.remove(agent)
 
-    def training_loop(self, number_round=100):
+
+
+    def training_loop(self, number_round=100) -> None:
+        """
+        The training loop for the population.
+        :param number_round: The number of rounds to train for.
+        :return: None
+        """
 
 
 
@@ -36,7 +56,7 @@ class Population():
             elo_per_policy_std_round = {Policy.PPO: [], Policy.DQN: []}
             paired_agents = self.rating.find_similar_elo_pairs()
             for agent_1, agent_2 in paired_agents:
-                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=5)
+                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=10)
                 agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
                                                                        agent_2_index=agent_2)
                 winner = agent_1 if agent_1_win > agent_2_win else agent_2
@@ -60,13 +80,15 @@ class Population():
 
         plot_elo_per_policy([Policy.PPO, Policy.DQN], elo_per_policy_mean, elo_per_policy_std)
 
-    def train_fight_1vs1(self, num_fights=1000, agent_1_index=0, agent_2_index=1):
+    def train_fight_1vs1(self, num_fights : int =1000, agent_1_index : int =0, agent_2_index : int =1):
         """
-        Simulates fights between a player agent and a randomly selected opponent agent.
+        Simulates fights between two agents.
+        :param num_fights: Number of fights to simulate. Defaults to 2000.
+        :param agent_1_index: Index of the first agent.
+        :param agent_2_index: Index of the second agent.
+        :return:
+        """
 
-        Parameters:
-            num_fights (int): Number of fights to simulate. Defaults to 2000.
-        """
         # get a random agent
         agent_1: Agent = self.agents[agent_1_index]
         agent_2: Agent = self.agents[agent_2_index]
@@ -219,12 +241,13 @@ class Population():
         #self.test_fight_1vs1(2000, agent_1_index=agent_1_index, agent_2_index=agent_2_index)
 
         return agent_1_win, agent_2_win, draws
-    def test_fight_1vs1(self, num_fights=2000, agent_1_index=0, agent_2_index=1):
+    def test_fight_1vs1(self, num_fights : int = 2000, agent_1_index : int = 0, agent_2_index : int = 1) -> None:
         """
-        Simulates fights between a player agent and a randomly selected opponent agent.
-
-        Parameters:
-            num_fights (int): Number of fights to simulate. Defaults to 2000.
+        Simulates fights between two agents, without training in a deterministic manner.
+        :param num_fights: Number of fights to simulate. Defaults to 2000.
+        :param agent_1_index: Index of the first agent.
+        :param agent_2_index: Index of the second agent.
+        :return: None
         """
         # get a random agent
         agent_1: Agent = self.agents[agent_1_index]
@@ -339,8 +362,9 @@ class Population():
         """
         Simulates fights between a player agent and a randomly selected opponent agent.
 
-        Parameters:
-            num_fights (int): Number of fights to simulate. Defaults to 2000.
+        :param num_fights: Number of fights to simulate. Defaults to 2000.
+        :param agent_id: Index of the agent to fight.
+        :return: None
         """
         # get a random agent
         random_agent: Agent = self.agents[agent_id]
@@ -377,7 +401,7 @@ class Population():
                         next_state = observation["observation"]
                         # flatten
                         next_state = next_state.flatten()
-                        if random_agent.policy_type == Policy.PPO:
+                        if random_agent.policy_type == Policy.PPO or random_agent.policy_type == Policy.A2C:
                             random_agent.policy.experience_replay.add_step(state=past_state,
                                                                            action=past_action,
                                                                            reward=past_reward,
@@ -408,12 +432,13 @@ class Population():
                     if agent == "player_1":
                         state = observation["observation"]
                         state = state.flatten()
-                        if random_agent.policy_type == Policy.PPO:
+                        if random_agent.policy_type == Policy.PPO or random_agent.policy_type == Policy.A2C:
                             action, log_prob, value = random_agent.policy.get_action(state, mask)
                             past_log_prob = log_prob
                             past_value = value
                         elif random_agent.policy_type == Policy.DQN:
                             action = random_agent.policy.act(state=state, mask=mask)
+
                         past_action = action
                         past_mask = mask
                         past_state = state
@@ -422,7 +447,6 @@ class Population():
 
                     else:
                         action = self.env.action_space(agent).sample(mask)
-
                 self.env.step(action)
             if fight % 20 == 0 and random_agent.policy_type == Policy.DQN:
                 random_agent.policy.update_epsilon()
@@ -435,8 +459,7 @@ class Population():
         random_agent_win, opponent_win, draws = self.compute_winrate_over_time(num_fights, random_agent_win,
                                                                                opponent_win, draws)
 
-        # Plotting win rates over time
-        #self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
+
 
 
 
@@ -445,14 +468,14 @@ class Population():
                                    draws: List[int]) -> None:
         """
         Plots the win rate over time.
-
-        Parameters:
-            random_agent (Agent): The random agent used in the simulation.
-            random_agent_win (List[int]): List of wins for the random agent.
-            opponent_win (List[int]): List of wins for the opponent agent.
-            draws (List[int]): List of draws.
+        :param agent_1: The first agent.
+        :param agent_2: The second agent.
+        :param agent_1_win: List of wins for the first agent.
+        :param agent_2_win: List of wins for the second agent.
+        :param draws: List of draws.
+        :return: None
         """
-        plot_winrate_over_time(agent_1, agent_1_win, agent_2_win, draws)
+        plot_winrate_over_time(agent_1=agent_1, agent_1_win=agent_1_win,agent_2=agent_2, agent_2_win=agent_2_win, draws=draws)
 
     def compute_winrate_over_time(self, num_fights: int, random_agent_win: List[int], opponent_win: List[int],
                                   draws: List[int]) -> tuple[List[int], List[int], List[int]]:
@@ -554,7 +577,7 @@ class Population():
                     if agent == "player_1":
                         state = observation["observation"]
                         state = state.flatten()
-                        if random_agent.policy_type == Policy.PPO:
+                        if random_agent.policy_type == Policy.PPO or random_agent.policy_type == Policy.A2C:
                             action, log_prob, value = random_agent.policy.get_action(state, mask, deterministic=True)
                             past_log_prob = log_prob
                             past_value = value
@@ -591,6 +614,7 @@ class Population():
         random_agent_win, opponent_win, draws = self.compute_winrate_over_time(num_tests, random_agent_win, opponent_win,
                                                                                draws)
         # Plotting win rates over time
+        print(f"Win rate for agent {random_agent.id} against random agent: {random_agent_win[-1]}")
         #self.plot_winrate_over_time(random_agent, random_agent_win, opponent_win, draws)
 
         return action_list
@@ -599,16 +623,21 @@ class Population():
 
 
 
-texas_population = Population(texas_holdem_v4.env(), 1)
-number_DQN = 50
-number_PPO = 50
-for i in range(number_DQN):
+texas_population = Population(connect_four_v3.env(), 1)
+number_DQN = 5
+number_PPO = 5
+number_A2C = 1
+texas_population.add_agent(Policy.PPO)
+texas_population.test_agents_against_random(1000,0)
+texas_population.fight_agent_against_random(50,0)
+texas_population.test_agents_against_random(1000,0)
+"""for i in range(number_DQN):
     texas_population.add_agent(Policy.DQN)
 for i in range(number_PPO):
     texas_population.add_agent(Policy.PPO)
-texas_population.training_loop(10)
+texas_population.training_loop(500)"""
 # keep only the best 10 agent and the worst 10 agents (based on elo)
-
+"""
 texas_population.agents = sorted(texas_population.agents, key=lambda x: texas_population.rating.get_rating(x.id))
 texas_population.agents = texas_population.agents[:10] + texas_population.agents[-10:]
 
@@ -619,3 +648,4 @@ for index, agent in enumerate(texas_population.agents):
     elo_dict[index] = texas_population.rating.get_rating(agent.id)
 plot_strategy_landscape_elo_fading(action_list, [agent.policy_type for agent in texas_population.agents],agent_elo=elo_dict)
 
+"""

@@ -1,13 +1,14 @@
+
 import torch
 import numpy as np
 import torch.nn as nn
-from torch.optim import Adam
+from torch.optim import Adam, RMSprop
 from torch.distributions import Categorical
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 
-class PPO(nn.Module):
+class A2C(nn.Module):
     class ExperienceReplay():
         def __init__(self, minibatch_size, buffer_size, state_size, num_workers=1, action_size=6, horizon=128):
             self.minibatch_size = minibatch_size
@@ -83,7 +84,7 @@ class PPO(nn.Module):
         def __len__(self):
             return self.size
 
-    def __init__(self, state_size, action_size, num_steps, batch_size, env_name='connect_four_v3', num_workers=1):
+    def __init__(self, state_size, action_size, num_steps, env_name='connect_four_v3', num_workers=1):
         """
         This class implements the Proximal Policy Optimization algorithm
         :param state_size: The size of the state space
@@ -92,7 +93,7 @@ class PPO(nn.Module):
         :param num_steps: The number of steps
         :param batch_size: The batch size
         """
-        super(PPO, self).__init__()
+        super(A2C, self).__init__()
 
         self.actor = nn.Sequential(
             nn.Linear(state_size, 128),
@@ -114,16 +115,17 @@ class PPO(nn.Module):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print(self.parameters())
         self.to(self.device)
-        self.optimizer = Adam(self.parameters(), lr=3e-4)
+        self.optimizer = RMSprop(self.parameters(), lr=0.0007, alpha=0.99, eps=1e-5)
 
-        self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps,
+
+        self.writer = SummaryWriter(log_dir=env_name + "_A2C")
+        self.num_workers = num_workers
+        self.num_steps = num_steps
+        self.batch_size = num_steps
+        self.experience_replay = self.ExperienceReplay(minibatch_size=self.batch_size, buffer_size=num_steps,
                                                        state_size=(state_size,), num_workers=num_workers,
                                                        action_size=action_size, horizon=num_steps)
 
-        self.writer = SummaryWriter(log_dir=env_name + "_PPO")
-        self.num_workers = num_workers
-        self.num_steps = num_steps
-        self.batch_size = batch_size
         self.ortogonal_initialization()
 
     def ortogonal_initialization(self):
@@ -167,13 +169,13 @@ class PPO(nn.Module):
         for param_group in optimizer.param_groups:
             param_group['lr'] *= decay_rate
 
-    def save_model(self, path='ppo.pth'):
+    def save_model(self, path='a2c.pth'):
         torch.save(self.state_dict(), path)
 
-    def load_model(self, path='ppo.pth'):
+    def load_model(self, path='a2c.pth'):
         self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
 
-    def compute_advantages(self, gamma=0.99, lamda=0.95):
+    def compute_advantages(self, gamma=0.99, lamda=1):
 
         for worker in range(self.experience_replay.num_worker):
             values = self.experience_replay.values[:, worker]
@@ -198,7 +200,7 @@ class PPO(nn.Module):
 
     def train_agent(self):
 
-        advantages = self.compute_advantages(gamma=0.99, lamda=0.95)
+        advantages = self.compute_advantages(gamma=0.99, lamda=1)
         # convert the data to torch tensors
         states = torch.from_numpy(self.experience_replay.states).to(self.device)
         actions = torch.from_numpy(self.experience_replay.actions).to(self.device)
@@ -218,35 +220,31 @@ class PPO(nn.Module):
 
         indices = np.arange(numer_of_samples)
         np.random.shuffle(indices)
-        for _ in range(4):
-            for batch_index in range(number_mini_batch):
-                start = batch_index * self.experience_replay.minibatch_size
-                end = (batch_index + 1) * self.experience_replay.minibatch_size
-                indice_batch = indices[start:end]
-                advantages_batch = advantages[indice_batch]
-                normalized_advantages = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
-                self.number_epochs += 1
 
-                new_dist, new_values = self.forward(states[indice_batch], actions_mask[indice_batch])
-                log_pi = new_dist.log_prob(actions[indice_batch])
+        for batch_index in range(number_mini_batch):
+            start = batch_index * self.experience_replay.minibatch_size
+            end = (batch_index + 1) * self.experience_replay.minibatch_size
+            indice_batch = indices[start:end]
+            advantages_batch = advantages[indice_batch]
 
-                ratio = torch.exp(log_pi - old_log_probs[indice_batch].detach())
-                surr1 = ratio * normalized_advantages
-                surr2 = torch.clamp(ratio, 1 - 0.2, 1 + 0.2) * normalized_advantages
-                actor_loss = -torch.min(surr1, surr2).mean()
-                critic_loss = F.mse_loss(new_values.squeeze(), returns[indice_batch])
+            new_dist, new_values = self.forward(states[indice_batch], actions_mask[indice_batch])
+            log_pi = new_dist.log_prob(actions[indice_batch])
 
-                entropy_loss = new_dist.entropy().mean()
-                self.writer.add_scalar('entropy', entropy_loss, self.number_epochs)
-                self.writer.add_scalar('critic', critic_loss, self.number_epochs)
-                self.writer.add_scalar('actor', actor_loss, self.number_epochs)
 
-                loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy_loss
+            actor_loss = (- log_pi * advantages_batch).mean()
+            critic_loss = F.mse_loss(new_values.squeeze(), returns[indice_batch])
+            entropy_loss = new_dist.entropy().mean()
+            self.writer.add_scalar('entropy', entropy_loss, self.number_epochs)
+            self.writer.add_scalar('critic', critic_loss, self.number_epochs)
+            self.writer.add_scalar('actor', actor_loss, self.number_epochs)
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-            self.experience_replay.clean_buffer()
+            loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            self.number_epochs += 1
+        self.experience_replay.clean_buffer()
             # agent.decay_learning_rate(optimizer)
 
         # create the dataset
