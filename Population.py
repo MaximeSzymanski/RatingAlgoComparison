@@ -24,7 +24,7 @@ class Population():
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = [action for action in range(self.action_size)]
-
+        self.number_agents_per_algo = {policy : 0 for policy in Policy}
 
     def get_id_new_agent(self) -> int:
         """
@@ -46,8 +46,9 @@ class Population():
 
         else :
             id = self.get_id_new_agent()
-            self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id))
+            self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,agent_index=self.number_agents_per_algo[policy_type]))
             self.rating.add_player(id, self.base_rating)
+            self.number_agents_per_algo[policy_type] += 1
 
 
     def remove_agent(self, agent: Agent) -> None:
@@ -285,8 +286,10 @@ class Population():
                     agent_1.policy.update_epsilon()
             self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1,
                                 current_episode_reward_agent_2)
-            agent_1.policy.writer.add_scalar("Reward", current_episode_reward_agent_1, fight)
-            agent_2.policy.writer.add_scalar("Reward", current_episode_reward_agent_2, fight)
+            agent_1.policy.writer.add_scalar("Reward", current_episode_reward_agent_1, agent_1.num_fights)
+            agent_2.policy.writer.add_scalar("Reward", current_episode_reward_agent_2, agent_2.num_fights)
+            agent_1.num_fights += 1
+            agent_2.num_fights += 1
             self.env.close()
 
         # Calculating win rates over time
@@ -504,11 +507,11 @@ class Population():
                     else:
                         action = self.env.action_space(agent).sample(mask)
                 self.env.step(action)
-            if fight % 20 == 0 and random_agent.policy_type == Policy.DQN:
+            if fight % 100 == 0 and random_agent.policy_type == Policy.DQN:
                 random_agent.policy.update_epsilon()
             self.compute_winner(random_agent_win, opponent_win, draws, current_episode_reward,
                                 current_episode_reward_opponent)
-            random_agent.policy.writer.add_scalar("Reward", current_episode_reward, fight)
+            random_agent.policy.writer.add_scalar("Reward", current_episode_reward, random_agent.num_fights)
             self.env.close()
 
         # Calculating win rates over time
@@ -696,7 +699,7 @@ for policy, count in agent_counts.items():
         texas_population.add_agent(policy)
 
 
-texas_population.training_loop(500,50,use_elo_in_reward=False)
+texas_population.training_loop(500,50,use_elo_in_reward=True)
 
 
 

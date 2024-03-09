@@ -5,7 +5,7 @@ from torch.optim import Adam
 from torch.distributions import Categorical
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-
+import os
 
 class PPO(nn.Module):
     class ExperienceReplay():
@@ -83,7 +83,8 @@ class PPO(nn.Module):
         def __len__(self):
             return self.size
 
-    def __init__(self, state_size, action_size, num_steps, batch_size, env_name='connect_four_v3', num_workers=1):
+    def __init__(self, state_size, action_size, num_steps, batch_size, env_name='connect_four_v3', num_workers=1,
+                 agent_index=0):
         """
         This class implements the Proximal Policy Optimization algorithm
         :param state_size: The size of the state space
@@ -109,13 +110,14 @@ class PPO(nn.Module):
         self.number_epochs = 0
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
-        self.optimizer = Adam(self.parameters(), lr=3e-4)
+        self.optimizer = Adam(self.parameters(), lr=3e-5)
 
         self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps,
                                                        state_size=(state_size,), num_workers=num_workers,
                                                        action_size=action_size, horizon=num_steps)
 
-        self.writer = SummaryWriter(log_dir=env_name + "_PPO")
+        os.makedirs(env_name + "_PPO/" + str(agent_index), exist_ok=True)
+        self.writer = SummaryWriter(log_dir=env_name + "_PPO/" + str(agent_index))
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = batch_size

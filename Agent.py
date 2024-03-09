@@ -9,16 +9,20 @@ from utils.policy import Policy
 from pettingzoo.utils.env import AECEnv
 
 class Agent():
-    def __init__(self,policy_type : Policy,state_size, action_size,id,seed=0,action_deterministic = 0) -> None:
+    def __init__(self,policy_type : Policy,state_size, action_size,id,seed=0,action_deterministic = 0,
+                 agent_index = 0) -> None:
         if policy_type == Policy.PPO:
             self.policy = PPO(state_size=state_size, action_size=action_size,num_steps=2048,
-                              batch_size=32,env_name='connect_four_v3')
+                              batch_size=64,env_name='connect_four_v3',
+                              agent_index=agent_index)
         elif policy_type == Policy.DQN:
-            self.policy= DQN(memory_size=10000,batch_size=64,gamma=0.99,epsilon=1,epsilon_decay=0.95,epsilon_min=0.01,
-                             state_size=state_size,action_size=action_size,seed=42,env_name="connect_four_v3",lr=3e-4)
+            self.policy= DQN(memory_size=10000,batch_size=64,gamma=0.99,epsilon=1,epsilon_decay=0.98,epsilon_min=0.01,
+                             state_size=state_size,action_size=action_size,seed=42,env_name="connect_four_v3",lr=3e-4,
+                             agent_index=agent_index)
 
         elif policy_type == Policy.A2C:
-            self.policy = A2C(state_size=state_size, action_size=action_size, num_steps=5,env_name='connect_four_v3')
+            self.policy = A2C(state_size=state_size, action_size=action_size, num_steps=5,env_name='connect_four_v3',
+                              agent_index=agent_index)
         elif policy_type == Policy.Random:
             self.policy = Random(action_size=action_size,seed=seed)
 
@@ -34,5 +38,6 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.id = id
+        self.num_fights = 0
 
 

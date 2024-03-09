@@ -6,7 +6,7 @@ from torch.optim import Adam, RMSprop
 from torch.distributions import Categorical
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-
+import os
 
 class A2C(nn.Module):
     class ExperienceReplay():
@@ -84,7 +84,8 @@ class A2C(nn.Module):
         def __len__(self):
             return self.size
 
-    def __init__(self, state_size, action_size, num_steps, env_name='connect_four_v3', num_workers=1):
+    def __init__(self, state_size, action_size, num_steps, env_name='connect_four_v3', num_workers=1,
+                 agent_index=0):
         """
         This class implements the Proximal Policy Optimization algorithm
         :param state_size: The size of the state space
@@ -110,10 +111,10 @@ class A2C(nn.Module):
         self.number_epochs = 0
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
-        self.optimizer = RMSprop(self.parameters(), lr=0.0007, alpha=0.99, eps=1e-5)
+        self.optimizer = RMSprop(self.parameters(), lr=0.0002, alpha=0.99, eps=1e-5)
 
-
-        self.writer = SummaryWriter(log_dir=env_name + "_A2C")
+        os.makedirs(env_name + "_A2C/" + str(agent_index), exist_ok=True)
+        self.writer = SummaryWriter(log_dir=env_name + "_A2C/" + str(agent_index))
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = num_steps

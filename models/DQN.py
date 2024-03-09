@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
-
+import os
 
 class DQN(nn.Module):
     class ExperienceReplay():
@@ -48,10 +48,12 @@ class DQN(nn.Module):
             return self.size >= self.sample_size
 
     def __init__(self, memory_size, batch_size, gamma, epsilon, epsilon_decay, epsilon_min, lr, state_size, action_size,
-                 env_name, seed=0
+                 env_name, seed=0,agent_index=0
                  ):
         super(DQN, self).__init__()
-        self.writer = SummaryWriter(log_dir=env_name + "_DQN")
+        # create a folder for the tensorboard logs
+        os.makedirs(env_name + "_DQN/" + str(agent_index), exist_ok=True)
+        self.writer = SummaryWriter(log_dir=env_name + "_DQN/" + str(agent_index))
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.experience_replay = self.ExperienceReplay(memory_size, batch_size, state_size, action_size)
