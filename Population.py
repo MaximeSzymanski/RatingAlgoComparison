@@ -194,7 +194,7 @@ class Population():
                                                                       action_mask=past_mask_agent_1)
 
                     past_state_agent_1 = observation["observation"].flatten()
-                    if use_elo_in_reward and reward is not 0:
+                    if use_elo_in_reward and reward != 0:
 
                         # check if it is a win
                         if reward == 1:
@@ -228,7 +228,7 @@ class Population():
                                                                       action_mask=past_mask_agent_2)
 
                     past_state_agent_2 = observation["observation"].flatten()
-                    if use_elo_in_reward and reward is not 0:
+                    if use_elo_in_reward and reward != 0:
 
                         # check if it is a win
                         if reward == 1:
@@ -696,7 +696,7 @@ for policy, count in agent_counts.items():
         texas_population.add_agent(policy)
 
 
-texas_population.training_loop(50,50,True)
+texas_population.training_loop(500,50,use_elo_in_reward=False)
 
 
 
