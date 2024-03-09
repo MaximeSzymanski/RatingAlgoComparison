@@ -95,24 +95,19 @@ class PPO(nn.Module):
         super(PPO, self).__init__()
 
         self.actor = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_size),
+            nn.Linear(64, action_size),
             nn.Softmax(dim=-1)
 
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
+            nn.Linear(64, 1)
         )
         self.number_epochs = 0
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        print(self.parameters())
         self.to(self.device)
         self.optimizer = Adam(self.parameters(), lr=3e-4)
 

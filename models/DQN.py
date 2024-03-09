@@ -66,18 +66,14 @@ class DQN(nn.Module):
         self.lr = lr
         self.action_size = action_size
         self.network = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_size)
+            nn.Linear(64, action_size)
         ).to(self.device)
         self.target_network = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_size)
+            nn.Linear(64, action_size)
         ).to(self.device)
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.loss = nn.MSELoss()

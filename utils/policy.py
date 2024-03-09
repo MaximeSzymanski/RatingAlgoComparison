@@ -1,8 +1,8 @@
-# create enum of policy
-from enum import Enum
+from enum import Enum, auto
+
 class Policy(Enum):
-    PPO = "PPO"
-    A2C = "A2C"
-    DQN = "DQN"
-
-
+    PPO = auto()
+    A2C = auto()
+    DQN = auto()
+    Random = auto()
+    Deterministic = auto()

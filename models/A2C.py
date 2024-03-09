@@ -96,24 +96,19 @@ class A2C(nn.Module):
         super(A2C, self).__init__()
 
         self.actor = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_size),
+            nn.Linear(64, action_size),
             nn.Softmax(dim=-1)
 
         )
         self.critic = nn.Sequential(
-            nn.Linear(state_size, 128),
+            nn.Linear(state_size, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
+            nn.Linear(64, 1)
         )
         self.number_epochs = 0
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        print(self.parameters())
         self.to(self.device)
         self.optimizer = RMSprop(self.parameters(), lr=0.0007, alpha=0.99, eps=1e-5)
 
@@ -143,6 +138,8 @@ class A2C(nn.Module):
         logits = self.actor(x)
         value = self.critic(x)
         if action_mask is not None:
+            # asert that mask is not full of zeros
+            assert action_mask.sum() > 0, "Mask is full of zeros"
             logits = logits * action_mask
         dist = Categorical(logits)
 
