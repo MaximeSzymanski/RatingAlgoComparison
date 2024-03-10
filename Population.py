@@ -9,8 +9,8 @@ from models.Deterministic import Deterministic
 from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3, tictactoe_v3,texas_holdem_v4
 import matplotlib.pyplot as plt
-from utils.plot import plot_winrate_over_time,plot_elo_per_policy,plot_strategy_landscape,plot_strategy_landscape_elo_fading
-from rating.elo import Elo
+from utils.plot import plot_winrate_over_time,plot_strategy_landscape,plot_strategy_landscape_elo_fading
+from rating.rating import Elo,TrueSkill
 from utils.policy import Policy
 from tqdm import tqdm
 from typing import List, Dict
@@ -20,7 +20,7 @@ class Population():
         self.agents: list[Agent] = []
         self.env: AECEnv = env
         self.state_size = 84
-        self.rating = Elo()
+        self.rating = TrueSkill()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = [action for action in range(self.action_size)]
@@ -42,12 +42,12 @@ class Population():
             for action in self.deterministic_action:
                 id = self.get_id_new_agent()
                 self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,action_deterministic=action))
-                self.rating.add_player(id, self.base_rating)
+                self.rating.add_player(id)
 
         else :
             id = self.get_id_new_agent()
             self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,agent_index=self.number_agents_per_algo[policy_type]))
-            self.rating.add_player(id, self.base_rating)
+            self.rating.add_player(id)
             self.number_agents_per_algo[policy_type] += 1
 
 
@@ -62,7 +62,7 @@ class Population():
 
 
 
-    def training_loop(self, number_round=10,num_fights=10,use_elo_in_reward=False) -> None:
+    def  training_loop(self, number_round=10,num_fights=10,use_rating_in_reward=False) -> None:
         """
         The training loop for the population.
         :param number_round: The number of rounds to train for.
@@ -73,43 +73,48 @@ class Population():
         # get all agents name as a set
         policy_names = set([agent.policy_name for agent in self.agents])
         print(policy_names)
-        elo_per_policy_mean = {policy : [] for policy in policy_names}
-        elo_per_policy_std = {policy : [] for policy in policy_names}
+        rating_per_policy_mean = {policy : [] for policy in policy_names}
+        rating_per_policy_std = {policy : [] for policy in policy_names}
         for round in tqdm(range(number_round)):
-            elo_per_policy_mean_round = {policy : [] for policy in policy_names}
-            paired_agents = self.rating.find_similar_elo_pairs()
+            rating_per_policy_mean_round = {policy : [] for policy in policy_names}
+            paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:
-                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=num_fights,use_elo_in_reward=use_elo_in_reward)
+                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=num_fights,use_rating_in_reward=use_rating_in_reward)
                 agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
                                                                        agent_2_index=agent_2)
-                winner = agent_1 if agent_1_win > agent_2_win else agent_2
+                draws = False
+                if agent_1_win > agent_2_win:
+                    winner = agent_1
+                    loser = agent_2
+                elif agent_1_win < agent_2_win:
+                    winner = agent_2
+                    loser = agent_1
+                else:
+                    draws = True
 
-                loser = agent_1 if agent_1_win < agent_2_win else agent_2
 
-                self.rating.update_ratings(winner, loser)
+                self.rating.update_ratings(winner, loser,draw = draws)
 
             for agent in self.agents:
                 for policy in policy_names:
                     if agent.policy_name == policy:
-                        elo_per_policy_mean_round[policy].append(self.rating.get_rating(agent.id))
+                        rating_per_policy_mean_round[policy].append(self.rating.get_rating(agent.id,to_plot=False))
 
             for policy in policy_names:
-                elo_per_policy_mean[policy].append(np.mean(elo_per_policy_mean_round[policy]))
-                elo_per_policy_std[policy].append(np.std(elo_per_policy_mean_round[policy]))
+                rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
+                rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
 
+        self.rating.plot_rating_per_policy(policy_names, rating_per_policy_mean, rating_per_policy_std)
+            #self.rating.plot_rating_distribution(round)
+        #plot_rating_per_policy(policy_names, rating_per_policy_mean, rating_per_policy_std)
 
-
-
-            self.rating.plot_elo_distribution(round)
-        plot_elo_per_policy(policy_names, elo_per_policy_mean, elo_per_policy_std)
-
-    def train_fight_1vs1(self, num_fights : int =1000, agent_1_index : int =0, agent_2_index : int =1,use_elo_in_reward=False) -> None:
+    def train_fight_1vs1(self, num_fights : int =1000, agent_1_index : int =0, agent_2_index : int =1,use_rating_in_reward=False) -> None:
         """
         Simulates fights between two agents.
         :param num_fights: Number of fights to simulate. Defaults to 2000.
         :param agent_1_index: Index of the first agent.
         :param agent_2_index: Index of the second agent.
-        :param use_elo_in_reward: Whether to use the Elo rating in the reward. Defaults to False.
+        :param use_rating_in_reward: Whether to use the rating in the reward. Defaults to False.
         :return:
         """
 
@@ -136,20 +141,20 @@ class Population():
         past_log_prob_agent_2 = None
         past_done_agent_2 = None
 
-        reward_elo_factor_agent_1 = 1
-        reward_elo_factor_agent_2 = 1
-        if use_elo_in_reward:
+        reward_rating_factor_agent_1 = 1
+        reward_rating_factor_agent_2 = 1
+        if use_rating_in_reward:
             # compute the difference in Elo ratings
-            elo_diff = self.rating.get_rating(agent_1.id) - self.rating.get_rating(agent_2.id)
-            elo_factor = 1 / (  np.exp(-abs(elo_diff) / 400))
-            if elo_diff < 0:
+            rating_diff = self.rating.get_rating(agent_1.id) - self.rating.get_rating(agent_2.id)
+            rating_factor = 1 / (  np.exp(-abs(rating_diff) / 400))
+            if rating_diff < 0:
                 # agent 1 has a lower rating, a win would be more rewarding and a loss would be less punishing
-                reward_elo_factor_agent_1 =  (elo_factor)
-                reward_elo_factor_agent_2 = abs(2-elo_factor)
-            elif elo_diff > 0:
+                reward_elo_factor_agent_1 =  (rating_factor)
+                reward_elo_factor_agent_2 = abs(2-rating_factor)
+            elif rating_diff > 0:
                 # agent 1 has a higher rating, a win would be less rewarding and a loss would be more punishing
-                reward_elo_factor_agent_1 = abs(2-elo_factor)
-                reward_elo_factor_agent_2 = (elo_factor)
+                reward_elo_factor_agent_1 = abs(2-rating_factor)
+                reward_elo_factor_agent_2 = (rating_factor)
 
         for fight in range(num_fights):
             # our agent is player 1 and the random bot is player 2
@@ -195,13 +200,13 @@ class Population():
                                                                       action_mask=past_mask_agent_1)
 
                     past_state_agent_1 = observation["observation"].flatten()
-                    if use_elo_in_reward and reward != 0:
+                    if use_rating_in_reward and reward != 0:
 
                         # check if it is a win
                         if reward == 1:
-                            reward = reward * reward_elo_factor_agent_1
+                            reward = reward * reward_rating_factor_agent_1
                         elif reward == -1:
-                            reward = reward * reward_elo_factor_agent_2
+                            reward = reward * reward_rating_factor_agent_2
 
                     past_reward_agent_1 = reward
                     current_episode_reward_agent_1 += reward
@@ -229,13 +234,13 @@ class Population():
                                                                       action_mask=past_mask_agent_2)
 
                     past_state_agent_2 = observation["observation"].flatten()
-                    if use_elo_in_reward and reward != 0:
+                    if use_rating_in_reward and reward != 0:
 
                         # check if it is a win
                         if reward == 1:
-                            reward = reward * reward_elo_factor_agent_2
+                            reward = reward * reward_rating_factor_agent_2
                         elif reward == -1:
-                            reward = reward * reward_elo_factor_agent_1
+                            reward = reward * reward_rating_factor_agent_1
 
                     past_reward_agent_2 = reward
                     current_episode_reward_agent_2 += reward
@@ -699,14 +704,14 @@ for policy, count in agent_counts.items():
         texas_population.add_agent(policy)
 
 
-texas_population.training_loop(500,50,use_elo_in_reward=True)
+texas_population.training_loop(100,200,use_rating_in_reward=True)
 
 
 
-action_list = []
-elo_dict = {}
+"""action_list = []
+rating_dict = {}
 for index, agent in enumerate(texas_population.agents):
     action_list.append(texas_population.test_agents_against_random(100,agent_id=index))
-    elo_dict[index] = texas_population.rating.get_rating(agent.id)
-plot_strategy_landscape_elo_fading(action_list, [agent.policy_name for agent in texas_population.agents],agent_elo=elo_dict)
+    rating_dict[index] = texas_population.rating.get_rating(agent.id)"""
+#plot_strategy_landscape_rating_fading(action_list, [agent.policy_name for agent in texas_population.agents],agent_rating=rating_dict)
 

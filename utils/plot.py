@@ -25,38 +25,7 @@ def plot_winrate_over_time(agent_1: Agent,agent_2 : Agent, agent_1_win: List[int
     plt.show()
 
 
-def plot_elo_per_policy(policies: List[str], elos_mean: Dict[str, List[int]], elos_std: Dict[str, List[int]]) -> None:
-    """
-    Plot the Elo rating of each policy over time.
 
-    Parameters:
-    - policies (List[str]): A list of policy names.
-    - elos_mean (Dict[str, List[int]]): A dictionary containing the mean Elo ratings for each policy.
-    - elos_std (Dict[str, List[int]]): A dictionary containing the standard deviations of Elo ratings for each policy.
-    """
-    # Define a larger set of distinct colors using a colormap
-    colors = plt.cm.get_cmap('tab20', len(policies))
-    for idx, policy in enumerate(policies):
-        # Remove "Policy." from the policy name
-        policy_name = str(policy)
-
-        plt.plot(range(len(elos_mean[policy])), elos_mean[policy], label=policy_name, color=colors(idx))
-
-        x = np.array(range(len(elos_mean[policy])))
-        y_mean = np.array(elos_mean[policy])
-        y_std = np.array(elos_std[policy])
-        plt.fill_between(x, y_mean - y_std, y_mean + y_std, alpha=0.3)
-    # increase the size of the plot
-    plt.gcf().set_size_inches(20, 15)
-
-    plt.xlabel("Number of Fights")
-    plt.ylabel("Elo Rating")
-    plt.legend()
-    # put legend top left
-    plt.legend(loc='upper left')
-    plt.title("Elo Rating Over Time")
-    plt.savefig('elo_rating.png')
-    plt.clf()
 
 
 def plot_strategy_landscape(agent_data : dict,agents_type : List[str],index_file=0):
