@@ -3,6 +3,8 @@ from trueskill import Rating, rate_1vs1
 from typing import List, Dict
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
+import trueskill
 
 
 class RatingSystem:
@@ -116,9 +118,12 @@ class Elo(RatingSystem):
         player2_rating = self.get_rating(player2_id)
 
         if draw:
-            expected_draw = 0.5
-            player1_new_rating = player1_rating + self.k_factor * (expected_draw - 0.5)
-            player2_new_rating = player2_rating + self.k_factor * (expected_draw - 0.5)
+            # compute the probability of a draw
+            expected_draw = self._expected_result(player1_rating, player2_rating)
+
+            # update the ratings
+            player1_new_rating = player1_rating + self.k_factor * (0.5 - expected_draw)
+            player2_new_rating = player2_rating + self.k_factor * (0.5 - expected_draw)
         else:
             expected_win = self._expected_result(player1_rating, player2_rating)
             player1_new_rating = player1_rating + self.k_factor * (1 - expected_win)
@@ -249,19 +254,27 @@ class TrueSkill(RatingSystem):
         - list of tuples: A list of tuples where each tuple represents a pair of agents,
                           with each agent having one opponent.
         """
-        players = list(self.ratings.keys())
-        random.shuffle(players)  # Shuffle players to randomize pairing
+        # Get all combinations of players
+        all_combinations = list(itertools.combinations(self.ratings.keys(), 2))
 
+        # Calculate the difference in ratings for each combination
+        rating_differences = []
+        for player1, player2 in all_combinations:
+            rating_difference = abs(
+                trueskill.expose(self.get_trueskill_ratings(player1)) - trueskill.expose(self.get_trueskill_ratings(player2)))
+            rating_differences.append((player1, player2, rating_difference))
+
+        # Sort combinations by rating difference
+        rating_differences.sort(key=lambda x: x[2])
+
+        # Pair up agents with similar ratings
         paired_agents = []
         used_players = set()
-
-        for player in players:
-            if player not in used_players:
-                opponent = self._find_opponent(player, used_players)
-                if opponent:
-                    paired_agents.append((player, opponent))
-                    used_players.add(player)
-                    used_players.add(opponent)
+        for player1, player2, _ in rating_differences:
+            if player1 not in used_players and player2 not in used_players:
+                paired_agents.append((player1, player2))
+                used_players.add(player1)
+                used_players.add(player2)
 
         return paired_agents
 
@@ -284,30 +297,7 @@ class TrueSkill(RatingSystem):
         self.ratings[winner_id] = winner
         self.ratings[loser_id] = loser
 
-    def _find_opponent(self, player_id, used_players):
-        """
-        Find an opponent for the given player based on TrueSkill ratings.
 
-        Parameters:
-        - player_id (int): The unique identifier for the player.
-        - used_players (set): Set of player IDs that have already been paired.
-
-        Returns:
-        - int: The ID of the opponent player, or None if no suitable opponent is found.
-        """
-        player_rating = self.get_trueskill_ratings(player_id)
-        best_match = None
-        min_difference = float('inf')
-
-        for opponent_id in self.ratings:
-            if opponent_id != player_id and opponent_id not in used_players:
-                opponent_rating = self.get_trueskill_ratings(opponent_id)
-                difference = abs(player_rating.mu - opponent_rating.mu)
-                if difference < min_difference:
-                    best_match = opponent_id
-                    min_difference = difference
-
-        return best_match
 
 
 
@@ -333,7 +323,7 @@ class TrueSkill(RatingSystem):
         if to_plot:
             return self.get_trueskill_ratings(player_id)
         else:
-            return self.ratings.get(player_id).mu
+            return self.ratings.get(player_id).mu - 3 * self.ratings.get(player_id).sigma
 
 
     def plot_rating_per_policy(self,policies: List[str], rating_mean: Dict[str, List[Rating]],

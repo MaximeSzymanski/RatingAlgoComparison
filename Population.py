@@ -20,7 +20,7 @@ class Population():
         self.agents: list[Agent] = []
         self.env: AECEnv = env
         self.state_size = 84
-        self.rating = TrueSkill()
+        self.rating = Elo()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = [action for action in range(self.action_size)]
@@ -149,12 +149,12 @@ class Population():
             rating_factor = 1 / (  np.exp(-abs(rating_diff) / 400))
             if rating_diff < 0:
                 # agent 1 has a lower rating, a win would be more rewarding and a loss would be less punishing
-                reward_elo_factor_agent_1 =  (rating_factor)
-                reward_elo_factor_agent_2 = abs(2-rating_factor)
+                reward_rating_factor_agent_1 =  (rating_factor)
+                reward_rating_factor_agent_2 = abs(2-rating_factor)
             elif rating_diff > 0:
                 # agent 1 has a higher rating, a win would be less rewarding and a loss would be more punishing
-                reward_elo_factor_agent_1 = abs(2-rating_factor)
-                reward_elo_factor_agent_2 = (rating_factor)
+                reward_rating_factor_agent_1 = abs(2-rating_factor)
+                reward_rating_factor_agent_2 = (rating_factor)
 
         for fight in range(num_fights):
             # our agent is player 1 and the random bot is player 2
@@ -690,11 +690,11 @@ class Population():
 texas_population = Population(connect_four_v3.env(), 1)
 
 agent_counts = {
-    Policy.DQN: 5,
-    Policy.PPO: 5,
-    Policy.A2C: 5,
-    Policy.Random: 5,
-    Policy.Deterministic: 5
+    Policy.DQN: 4,
+    Policy.PPO: 4,
+    Policy.A2C: 4,
+    Policy.Random: 4,
+    Policy.Deterministic: 4
 }
 
 
@@ -704,7 +704,7 @@ for policy, count in agent_counts.items():
         texas_population.add_agent(policy)
 
 
-texas_population.training_loop(100,200,use_rating_in_reward=True)
+texas_population.training_loop(number_round=1000,num_fights=10,use_rating_in_reward=False)
 
 
 

@@ -110,7 +110,7 @@ class PPO(nn.Module):
         self.number_epochs = 0
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
-        self.optimizer = Adam(self.parameters(), lr=3e-5)
+        self.optimizer = Adam(self.parameters(), lr=1e-3, eps=1e-5)
 
         self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps,
                                                        state_size=(state_size,), num_workers=num_workers,
@@ -215,7 +215,7 @@ class PPO(nn.Module):
 
         indices = np.arange(numer_of_samples)
         np.random.shuffle(indices)
-        for _ in range(4):
+        for _ in range(10):
             for batch_index in range(number_mini_batch):
                 start = batch_index * self.experience_replay.minibatch_size
                 end = (batch_index + 1) * self.experience_replay.minibatch_size
@@ -238,7 +238,7 @@ class PPO(nn.Module):
                 self.writer.add_scalar('critic', critic_loss, self.number_epochs)
                 self.writer.add_scalar('actor', actor_loss, self.number_epochs)
 
-                loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy_loss
+                loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
