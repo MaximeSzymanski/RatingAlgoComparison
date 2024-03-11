@@ -33,9 +33,8 @@ class Population():
             for _ in range(count):
                 self.add_agent(policy)
 
-        self.agents.sort(key=lambda x: x.policy_name)
-        # put "Deterministic" and "Random" at the end. Check if the policy name contains "Deterministic" or "Random"
-        self.agents.sort(key=lambda x: "Deterministic" or "Random" in x.policy_name)
+
+
 
 
     def get_id_new_agent(self) -> int:
@@ -61,8 +60,13 @@ class Population():
             self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,agent_index=self.number_agents_per_algo[policy_type]))
             self.rating.add_player(id)
             self.number_agents_per_algo[policy_type] += 1
+        self.agents.sort(key=self.policy_sort)
 
-
+    def policy_sort(self,agent : Agent) -> float:
+        if agent.policy_type == Policy.Deterministic or agent.policy_type == Policy.Random:
+            return 'zzz'
+        else:
+            return agent.policy_type.name
     def remove_agent(self, agent: Agent) -> None:
         """
         Remove an agent from the population.
@@ -93,7 +97,11 @@ class Population():
         :param num_fight_test: The number of fights to test for.
         :return: None
         """
-        self.diversity = DiversityAction(len(self.agents),number_round)
+        # get the number of non random or deterministic agents
+        num_non_random_deterministic_agents = len([agent for agent in self.agents if agent.policy_type != Policy.Random and agent.policy_type != Policy.Deterministic])
+
+
+        self.diversity = DiversityAction(number_agent=len(self.agents),number_round=number_round,non_random_deterministic_agent=num_non_random_deterministic_agents)
 
         print(f"================= Training Loop =================")
         print(f"Training for {number_round} rounds, {num_fights_train} fights for training and {num_fight_test} fights for testing")
