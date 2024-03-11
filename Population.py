@@ -14,13 +14,13 @@ import numpy as np
 from tqdm import tqdm
 from pettingzoo.classic import connect_four_v3
 class Population:
-    def __init__(self, env: AECEnv, agent_counts):
+    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int]):
         """
         Initialize the population of agents.
 
         Parameters:
         - env (AECEnv): The environment.
-        - agent_counts (Dict[str, int]): A dictionary containing the count of each agent type.
+        - agent_counts (Dict[Policy, int]): A dictionary containing the count of each agent type.
         """
         self.agents: List[Agent] = []
         self.env: AECEnv = env
@@ -65,12 +65,12 @@ class Population:
         """
         return len(self.agents)
 
-    def add_agent(self, policy_type: str) -> None:
+    def add_agent(self, policy_type: Policy) -> None:
         """
         Add an agent to the population.
 
         Parameters:
-        - policy_type (str): The type of policy to use for the agent.
+        - policy_type (Policy): The type of policy to use for the agent.
         """
         if policy_type == Policy.Deterministic:
             for action in self.deterministic_action:

@@ -317,12 +317,13 @@ class TrueSkill(RatingSystem):
         """
         return self.ratings.get(player_id)
 
-    def get_rating(self, player_id: int, to_plot=False) -> float:
+    def get_rating(self, player_id: int, to_plot : bool = False) -> Rating:
         """
         Get the current TrueSkill rating of a player.
 
         Parameters:
         - player_id (int): The unique identifier for the player.
+        - to_plot (bool): Whether to plot the TrueSkill rating of the player. Default is False.
 
         Returns:
         - Rating: The TrueSkill rating of the player.

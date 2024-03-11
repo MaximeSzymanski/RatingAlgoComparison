@@ -15,7 +15,7 @@ class Logger:
 
     def log_diversity_matrix(self, diversity_matrix: np.array, agents: list[Agent]) -> None:
         """
-        Log the diversity matrix.
+        Log the diversity matrix. ( upper triangular matrix )
 
         Args:
             diversity_matrix (np.array): The diversity matrix.
@@ -23,6 +23,9 @@ class Logger:
         """
         # create the folder if it does not exist
         os.makedirs("diversity_matrix", exist_ok=True)
+        # keep only upper triangular matrix
+        diversity_matrix = np.triu(diversity_matrix, k=1)
+
         plot_and_save_diversity_matrix(
             diversity_matrix, agents, self.diversity_matrix_log_counter)
         self.diversity_matrix_log_counter += 1
