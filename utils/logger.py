@@ -1,7 +1,7 @@
 import os, matplotlib.pyplot as plt
 import numpy as np
 from Agent import Agent
-from plot import plot_and_save_diversity_matrix
+from utils.plot import plot_and_save_diversity_matrix
 
 class Logger():
     def __init__(self):
@@ -17,6 +17,7 @@ class Logger():
         os.makedirs("diversity_matrix", exist_ok=True)
         plot_and_save_diversity_matrix(diversity_matrix,agents, self.diversity_matrix_log_counter)
         self.diversity_matrix_log_counter += 1
+
 
 
 

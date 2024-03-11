@@ -6,11 +6,10 @@ from models.A2C import A2C
 from models.Random import Random
 from models.Deterministic import Deterministic
 from utils.diversity_action import DiversityAction
-from utils.diversity import Diversity
 from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3, tictactoe_v3,texas_holdem_v4
 import matplotlib.pyplot as plt
-from utils.plot import plot_winrate_over_time,plot_strategy_landscape,plot_strategy_landscape_elo_fading, plot_diversity_matrix
+from utils.plot import plot_winrate_over_time,plot_strategy_landscape,plot_strategy_landscape_elo_fading, plot_diversity_matrix,plot_diversity_over_time
 from rating.rating import Elo,TrueSkill
 from utils.policy import Policy
 from tqdm import tqdm
@@ -34,12 +33,10 @@ class Population():
             for _ in range(count):
                 self.add_agent(policy)
 
-        self.diversity = DiversityAction(len(self.agents))
         self.agents.sort(key=lambda x: x.policy_name)
-        # put "Deterministic" and "Random" at the end
-        self.agents.sort(key=lambda x: x.policy_type)
-        self.agents.sort(key=lambda x: x.policy_type == Policy.Deterministic)
-        self.agents.sort(key=lambda x: x.policy_type == Policy.Random)
+        # put "Deterministic" and "Random" at the end. Check if the policy name contains "Deterministic" or "Random"
+        self.agents.sort(key=lambda x: "Deterministic" or "Random" in x.policy_name)
+
 
     def get_id_new_agent(self) -> int:
         """
@@ -96,6 +93,7 @@ class Population():
         :param num_fight_test: The number of fights to test for.
         :return: None
         """
+        self.diversity = DiversityAction(len(self.agents),number_round)
 
         print(f"================= Training Loop =================")
         print(f"Training for {number_round} rounds, {num_fights_train} fights for training and {num_fight_test} fights for testing")
@@ -107,6 +105,7 @@ class Population():
         rating_per_policy_std = {policy : [] for policy in policy_names}
         for round in tqdm(range(number_round)):
             self.loger.log_diversity_matrix(self.compute_diversity(),self.agents)
+            plot_diversity_over_time(self.diversity.distance_score,number_round=round+1)
             rating_per_policy_mean_round = {policy : [] for policy in policy_names}
             paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:
@@ -750,6 +749,5 @@ texas_population.training_loop(number_round=500,num_fights_train=num_fights_trai
                                num_fight_test=num_fight_test,use_rating_in_reward=True)
 
 diversity_matrix = (texas_population.compute_diversity(num_tests=10))
-# plot it
-plot_diversity_matrix(diversity_matrix, [agent.policy_name for agent in texas_population.agents])
+
 

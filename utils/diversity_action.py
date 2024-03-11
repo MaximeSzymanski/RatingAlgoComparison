@@ -8,8 +8,10 @@ import matplotlib.pyplot as plt
 from functools import cache
 class DiversityAction():
 
-    def __init__(self,number_agent : int = 0) -> None:
+    def __init__(self,number_agent : int = 0,number_round=1) -> None:
         self.distance_matrix = np.zeros((number_agent, number_agent))
+        self.distance_score = np.zeros((number_round, number_agent))
+        self.current_round = 0
     def get_diversity_two_agents(self,agent1 : Agent, agent2 : Agent, list_states : list[np.array], list_masks : list[np.array]) -> float:
         """
         Get the diversity between two agents. This is the cross entropy between the action distribution of the two agents.
@@ -72,6 +74,24 @@ class DiversityAction():
             for j in range(len(agents)):
                 diversity = self.get_diversity_two_agents(agents[i], agents[j], list_states, list_masks)
                 self.distance_matrix[i, j] = diversity / len(list_states)
-
+        self.update_distance_score()
         return self.distance_matrix
 
+    def update_distance_score(self) -> None:
+        """
+        Compute the distance score
+        :return: The distance score
+        """
+        # sum the lines of the distance matrix
+        self.distance_score[self.current_round] = np.sum(self.distance_matrix, axis=1)
+        self.current_round += 1
+        print(f"shape of distance score: {self.distance_score.shape}")
+
+
+
+    def get_distance_score(self) -> np.array:
+        """
+        Get the distance score
+        :return: The distance score
+        """
+        return self.distance_score

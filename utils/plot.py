@@ -132,3 +132,26 @@ def plot_and_save_diversity_matrix(diversity_matrix: np.ndarray, agents: List[Ag
         plt.title("Diversity Matrix " + str(index_file))
         plt.savefig("diversity_matrix/diversity_matrix_" + str(index_file) + ".png")
         plt.clf()
+
+def plot_diversity_over_time(diversity_over_time: np.array,number_round=0) -> None:
+    """
+    Plot the diversity over time.
+
+    Parameters:
+        diversity_over_time (np.array): The diversity over time. shape (number_rounds, number_agents)
+        number_round (int): The number of rounds to plot (optional).
+    """
+    diversity_over_time = diversity_over_time[:number_round]
+    print(f"shape of diversity over time: {diversity_over_time.shape}")
+    diversity_over_time_mean = np.mean(diversity_over_time, axis=1)
+    diversity_over_time_std = np.std(diversity_over_time, axis=1)
+    plt.plot(diversity_over_time_mean, label="Mean Diversity")
+    plt.fill_between(np.arange(len(diversity_over_time_mean)), diversity_over_time_mean - diversity_over_time_std,
+                     diversity_over_time_mean + diversity_over_time_std, alpha=0.3)
+    plt.xlabel("Number of Rounds")
+    plt.ylabel("Diversity")
+    plt.legend()
+    plt.title("Diversity Over Time")
+    plt.plot()
+    plt.show()
+
