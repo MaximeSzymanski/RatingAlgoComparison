@@ -144,7 +144,6 @@ def plot_diversity_over_time(diversity_over_time: np.array,number_round=0) -> No
     if number_round == 1:
         return
     diversity_over_time = diversity_over_time[:number_round]
-    print(f"shape of diversity over time: {diversity_over_time.shape}")
     diversity_over_time_mean = np.mean(diversity_over_time, axis=1)
     diversity_over_time_std = np.std(diversity_over_time, axis=1)
     plt.plot(diversity_over_time_mean, label="Mean Diversity")
@@ -157,7 +156,7 @@ def plot_diversity_over_time(diversity_over_time: np.array,number_round=0) -> No
     plt.plot()
     plt.show()
 
-def plot_and_save_diversity_over_time(diversity_over_time: np.array, number_round=0) -> None:
+def plot_and_save_diversity_over_time_global(diversity_over_time: np.array, number_round=0) -> None:
     """
     Plot the diversity over time.
 
@@ -180,4 +179,28 @@ def plot_and_save_diversity_over_time(diversity_over_time: np.array, number_roun
     plt.title("Diversity Over Time")
     plt.plot()
     plt.savefig("diversity_score/diversity_score_" + str(number_round) + ".png")
+    plt.clf()
+
+def plot_and_save_diversity_over_time_per_policy_type(diversity_over_time: dict[Policy,np.array], number_round=0) -> None:
+    """
+    Plot the diversity over time for each policy type.
+
+    Parameters:
+        diversity_over_time (dict[Policy,np.array]): The diversity over time for each policy type.
+        number_round (int): The number of rounds to plot (optional).
+    """
+    if number_round <= 1:
+        return
+    for policy_type, diversity in diversity_over_time.items():
+        diversity = diversity[:number_round]
+        diversity_mean = np.mean(diversity, axis=1)
+        diversity_std = np.std(diversity, axis=1)
+        plt.plot(diversity_mean, label=f"{policy_type} Mean Diversity")
+        plt.fill_between(np.arange(len(diversity_mean)), diversity_mean - diversity_std, diversity_mean + diversity_std, alpha=0.3)
+    plt.xlabel("Number of Rounds")
+    plt.ylabel("Diversity")
+    plt.legend()
+    plt.title("Diversity Over Time Per Policy Type")
+    plt.plot()
+    plt.savefig("diversity_score/diversity_score_per_policy_type_" + str(number_round) + ".png")
     plt.clf()

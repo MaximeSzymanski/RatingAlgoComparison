@@ -23,7 +23,7 @@ class Population():
         self.env: AECEnv = env
         self.state_size = 84
         self.loger = Logger()
-        self.rating = Elo()
+        self.rating = TrueSkill()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = [action for action in range(self.action_size)]
@@ -37,6 +37,20 @@ class Population():
 
 
 
+    def get_agent_type_per_id(self, id : int) -> Policy:
+        """
+        Get the type of agent for a given id.
+        :param id: The id of the agent.
+        :return: The type of agent.
+        """
+        return self.agents[id].policy_type
+
+    def get_dict_agent_type_per_id(self) -> Dict[int, Policy]:
+        """
+        Get the type of agent for each id.
+        :return: The type of agent for each id.
+        """
+        return {agent.id : agent.policy_type for agent in self.agents}
     def get_id_new_agent(self) -> int:
         """
         Get the id for a new agent.
@@ -101,7 +115,8 @@ class Population():
         num_non_random_deterministic_agents = len([agent for agent in self.agents if agent.policy_type != Policy.Random and agent.policy_type != Policy.Deterministic])
 
 
-        self.diversity = DiversityAction(number_agent=len(self.agents),number_round=number_round,non_random_deterministic_agent=num_non_random_deterministic_agents)
+        self.diversity = DiversityAction(number_agent=len(self.agents),number_round=number_round,non_random_deterministic_agent=num_non_random_deterministic_agents
+                                         ,id_agent_to_policy=self.get_dict_agent_type_per_id())
 
         print(f"================= Training Loop =================")
         print(f"Training for {number_round} rounds, {num_fights_train} fights for training and {num_fight_test} fights for testing")
@@ -112,8 +127,10 @@ class Population():
         rating_per_policy_mean = {policy : [] for policy in policy_names}
         rating_per_policy_std = {policy : [] for policy in policy_names}
         for round in tqdm(range(number_round)):
-            self.loger.log_diversity_matrix(self.compute_diversity(),self.agents)
-            self.loger.log_diversity_over_time(self.diversity.distance_score,round)
+            if round != number_round - 1 :
+                self.loger.log_diversity_matrix(self.compute_diversity(),self.agents)
+                self.loger.log_diversity_over_time_global(self.diversity.get_distance_score_global(), round)
+                self.loger.log_diversity_over_time_per_policy_type(self.diversity.get_distance_score_per_policy_type(), round)
             rating_per_policy_mean_round = {policy : [] for policy in policy_names}
             paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:

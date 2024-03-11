@@ -9,10 +9,13 @@ import matplotlib.pyplot as plt
 from functools import cache
 class DiversityAction():
 
-    def __init__(self,number_agent : int = 0,number_round=1,non_random_deterministic_agent : int = 0 ) -> None:
+    def __init__(self,number_agent : int = 0,number_round=1,non_random_deterministic_agent : int = 0 ,id_agent_to_policy : dict[int, Policy] = {}) -> None:
         self.total_distance_matrix = np.zeros((number_agent, number_agent))
         self.non_random_deterministic_agent = non_random_deterministic_agent
         self.distance_score = np.zeros((number_round, self.non_random_deterministic_agent))
+        self.policy_per_id_agent = id_agent_to_policy
+
+
         self.current_round = 0
     def get_diversity_two_agents(self,agent1 : Agent, agent2 : Agent, list_states : list[np.array], list_masks : list[np.array]) -> float:
         """
@@ -98,8 +101,29 @@ class DiversityAction():
         self.current_round += 1
 
 
+    def get_distance_score_per_policy_type(self) -> dict[Policy, np.array]:
+        """
+        Get the distance score per policy type
+        :return: The distance score per policy type
+        """
+        policy_to_plot = [policy for policy in Policy if policy != Policy.Random and policy != Policy.Deterministic]
+        distance_score_per_policy_type = {policy: np.zeros(self.distance_score.shape[0]) for policy in policy_to_plot}
 
-    def get_distance_score(self) -> np.array:
+        for agent,index in enumerate(self.policy_per_id_agent.keys()):
+            policy_type = self.policy_per_id_agent[agent]
+            if policy_type in policy_to_plot:
+
+                distance_score_per_policy_type[policy_type] += self.distance_score[:, index]
+        # normalize the distance score by dividing by the number of agents of the same policy type
+        for policy in policy_to_plot:
+            distance_score_per_policy_type[policy] /= len([agent for agent in self.policy_per_id_agent.values() if agent == policy])
+            if len([agent for agent in self.policy_per_id_agent.values() if agent == policy]) == 1:
+                distance_score_per_policy_type[policy] = distance_score_per_policy_type[policy].reshape(-1,1)
+
+        return distance_score_per_policy_type
+
+
+    def get_distance_score_global(self) -> np.array:
         """
         Get the distance score
         :return: The distance score
