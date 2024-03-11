@@ -8,7 +8,6 @@ class Diversity():
         :param number_agents: The number of agents in the population
         """
         self.distance_matrix = np.zeros((number_agents, number_agents))
-        print(f"number_agents: {number_agents}")
 
 
 

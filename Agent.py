@@ -40,12 +40,14 @@ class Agent():
         self.id = id
         self.num_fights = 0
 
-        def get_action_distribution(self, state : np.ndarray, mask : np.ndarray) -> np.ndarray:
-            """
-            Get the action distribution of the agent
-            :param state: The state of the environment
-            :return: The action distribution of the agent
-            """
-            return self.policy.get_action_distribution(state, mask)
+    def get_action_distribution(self, state : np.ndarray, mask : np.ndarray) -> np.ndarray:
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+        action_distribution = self.policy.get_action_distribution(state, mask)
+        assert np.allclose(np.sum(action_distribution), 1), f"Action distribution of agent {self.id} does not sum to 1"
+        return action_distribution
 
 

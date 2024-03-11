@@ -1,0 +1,94 @@
+
+from Agent import Agent
+import numpy as np
+# import scaler minmax
+from sklearn.preprocessing import MinMaxScaler
+import torch
+import matplotlib.pyplot as plt
+class DiversityAction():
+
+    def __init__(self,number_agent : int = 0) -> None:
+        self.distance_matrix = np.zeros((number_agent, number_agent))
+    def get_diversity_two_agents(self,agent1 : Agent, agent2 : Agent, list_states : list[np.array], list_masks : list[np.array]) -> float:
+        """
+        Get the diversity between two agents. This is the cross entropy between the action distribution of the two agents.
+        :param agent1: The first agent
+        :param agent2: The second agent
+        :return: The diversity between the two agents
+        """
+
+        diversity = 0
+        for state, mask in zip(list_states, list_masks):
+            action_distribution_agent1 = agent1.get_action_distribution(state, mask)
+            action_distribution_agent2 = agent2.get_action_distribution(state, mask)
+            diversity += self.cross_entropy(action_distribution_agent1, action_distribution_agent2)
+
+        # normalize the diversity
+        diversity /= len(list_states)
+        return diversity
+    def cross_entropy(self, p: np.ndarray, q: np.ndarray) -> float:
+        """
+        Compute the cross entropy between two distributions
+        :param p: First distribution
+        :param q: Second distribution
+        :return: Cross entropy
+        """
+        # Make sure p and q have the same shape
+        assert p.shape == q.shape, "Distributions must have the same shape"
+        cross_entropy = -np.sum(p * np.log(q+1e-10))
+        return cross_entropy
+
+    def KL_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
+        """
+        Compute the KL divergence between two distributions
+        :param p: First distribution
+        :param q: Second distribution
+        :return: KL divergence
+        """
+        # Make sure p and q have the same shape
+        assert p.shape == q.shape, "Distributions must have the same shape"
+
+        # Compute the KL divergence with a small epsilon added to avoid division by zero
+        kl_divergence = np.sum(p * np.nan_to_num(np.log((p / (q + 1e-8)))))
+
+
+        return kl_divergence
+
+
+
+
+    def compute_diversity(self, agents : list[Agent], list_states : list[np.array], list_masks : list[np.array]) -> np.array:
+        """
+        Compute the diversity of the population
+        :param agents: The agents
+        :param list_states: The list of states
+        :param list_masks: The list of masks
+        :return: The diversity matrix of the agents
+        """
+        diversity = 0
+        for i in range(len(agents)):
+            for j in range(len(agents)):
+                diversity = self.get_diversity_two_agents(agents[i], agents[j], list_states, list_masks)
+                self.distance_matrix[i, j] = diversity
+
+        # normalize all the diversity values between 0 and 1
+        # get all values in a list
+
+        # get max and min
+        # put the values back in the dictionary
+
+
+
+
+
+        # get the index of row-column name of the agents
+        # plot the matrix with the names of the agents
+        plt.figure(figsize=(10, 10))
+        plt.imshow(self.distance_matrix, cmap='hot', interpolation='nearest')
+        plt.xticks(range(len(agents)), [agent.policy_name for agent in agents], rotation=90)
+        plt.yticks(range(len(agents)), [agent.policy_name for agent in agents])
+        plt.colorbar()
+        plt.show()
+
+        return self.distance_matrix
+
