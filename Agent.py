@@ -8,6 +8,7 @@ from utils.policy import Policy
 
 from pettingzoo.utils.env import AECEnv
 
+
 class Agent():
     def __init__(
             self,
@@ -45,7 +46,8 @@ class Agent():
         elif policy_type == Policy.Random:
             self.policy = Random(action_size=action_size, seed=seed)
         elif policy_type == Policy.Deterministic:
-            self.policy = Deterministic(action_size=action_size, action_index=action_deterministic)
+            self.policy = Deterministic(
+                action_size=action_size, action_index=action_deterministic)
         else:
             raise ValueError("Policy not found")
 
@@ -53,7 +55,8 @@ class Agent():
         self.policy_type = policy_type
         self.policy_name = str(policy_type) + (
             f" {action_deterministic}" if policy_type == Policy.Deterministic else "")
-        self.policy_name = self.policy_name.split(".")[1]  # Remove "Policy." from the policy name
+        # Remove "Policy." from the policy name
+        self.policy_name = self.policy_name.split(".")[1]
         self.state_size = state_size
         self.action_size = action_size
         self.id = id
@@ -71,5 +74,6 @@ class Agent():
             np.ndarray: The action distribution of the agent.
         """
         action_distribution = self.policy.get_action_distribution(state, mask)
-        assert np.allclose(np.sum(action_distribution), 1), f"Action distribution of agent {self.id} does not sum to 1"
+        assert np.allclose(np.sum(action_distribution),
+                           1), f"Action distribution of agent {self.id} does not sum to 1"
         return action_distribution

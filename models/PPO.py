@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 import os
 
+
 class PPO(nn.Module):
     class ExperienceReplay():
         def __init__(self, minibatch_size, buffer_size, state_size, num_workers=1, action_size=6, horizon=128):
@@ -29,8 +30,10 @@ class PPO(nn.Module):
             self.states = np.empty(buffer_state_size, dtype=np.float32)
             self.next_states = np.empty(buffer_state_size, dtype=np.float32)
             self.dones = np.empty(transformed_buffer_size, dtype=np.int32)
-            self.old_log_probs = np.empty(transformed_buffer_size, dtype=np.float32)
-            self.advantages = np.empty(transformed_buffer_size, dtype=np.float32)
+            self.old_log_probs = np.empty(
+                transformed_buffer_size, dtype=np.float32)
+            self.advantages = np.empty(
+                transformed_buffer_size, dtype=np.float32)
             self.values = np.empty(transformed_buffer_size, dtype=np.float32)
             self.head = 0
             self.size = 0
@@ -66,9 +69,11 @@ class PPO(nn.Module):
             # flatten the buffer
             self.states = self.states.reshape(-1, self.states.shape[-1])
             self.actions = self.actions.flatten()
-            self.actions_mask = self.actions_mask.reshape(-1, self.actions_mask.shape[-1])
+            self.actions_mask = self.actions_mask.reshape(
+                -1, self.actions_mask.shape[-1])
             self.rewards = self.rewards.flatten()
-            self.next_states = self.next_states.reshape(-1, self.next_states.shape[-1])
+            self.next_states = self.next_states.reshape(
+                -1, self.next_states.shape[-1])
             self.dones = self.dones.flatten()
             self.old_log_probs = self.old_log_probs.flatten()
             self.values = self.values.flatten()
@@ -108,16 +113,19 @@ class PPO(nn.Module):
             nn.Linear(64, 1)
         )
         self.number_epochs = 0
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
         self.optimizer = Adam(self.parameters(), lr=1e-3, eps=1e-5)
 
         self.experience_replay = self.ExperienceReplay(minibatch_size=batch_size, buffer_size=num_steps,
-                                                       state_size=(state_size,), num_workers=num_workers,
+                                                       state_size=(
+                                                           state_size,), num_workers=num_workers,
                                                        action_size=action_size, horizon=num_steps)
 
         os.makedirs(env_name + "_PPO/" + str(agent_index), exist_ok=True)
-        self.writer = SummaryWriter(log_dir=env_name + "_PPO/" + str(agent_index))
+        self.writer = SummaryWriter(
+            log_dir=env_name + "_PPO/" + str(agent_index))
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = batch_size
@@ -143,7 +151,7 @@ class PPO(nn.Module):
 
         return dist, value
 
-    def get_action_distribution(self, state : np.ndarray, action_mask : np.ndarray) -> np.ndarray:
+    def get_action_distribution(self, state: np.ndarray, action_mask: np.ndarray) -> np.ndarray:
         """
         Get the action distribution of the agent
         :param state: The state of the environment
@@ -172,7 +180,8 @@ class PPO(nn.Module):
 
     def decay_learning_rate(self, optimizer, decay_rate=0.99):
         print("Decaying learning rate")
-        self.writer.add_scalar("Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
+        self.writer.add_scalar(
+            "Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
         for param_group in optimizer.param_groups:
             param_group['lr'] *= decay_rate
 
@@ -180,7 +189,8 @@ class PPO(nn.Module):
         torch.save(self.state_dict(), path)
 
     def load_model(self, path='ppo.pth'):
-        self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
+        self.load_state_dict(torch.load(
+            path, map_location=torch.device('cpu')))
 
     def compute_advantages(self, gamma=0.99, lamda=0.95):
 
@@ -194,7 +204,8 @@ class PPO(nn.Module):
                 mask = 1 - self.experience_replay.dones[i, worker]
                 last_value = last_value * mask
                 last_advantage = last_advantage * mask
-                delta = self.experience_replay.rewards[i, worker] + gamma * last_value - values[i]
+                delta = self.experience_replay.rewards[i,
+                                                       worker] + gamma * last_value - values[i]
                 last_advantage = delta + gamma * lamda * last_advantage
                 advantages[i] = last_advantage
                 last_value = values[i]
@@ -209,13 +220,18 @@ class PPO(nn.Module):
 
         advantages = self.compute_advantages(gamma=0.99, lamda=0.95)
         # convert the data to torch tensors
-        states = torch.from_numpy(self.experience_replay.states).to(self.device)
-        actions = torch.from_numpy(self.experience_replay.actions).to(self.device)
-        old_log_probs = torch.from_numpy(self.experience_replay.old_log_probs).to(self.device).detach()
+        states = torch.from_numpy(
+            self.experience_replay.states).to(self.device)
+        actions = torch.from_numpy(
+            self.experience_replay.actions).to(self.device)
+        old_log_probs = torch.from_numpy(
+            self.experience_replay.old_log_probs).to(self.device).detach()
 
         advantages = torch.from_numpy(advantages).to(self.device)
-        values = torch.from_numpy(self.experience_replay.values).to(self.device)
-        actions_mask = torch.from_numpy(self.experience_replay.actions_mask).to(self.device)
+        values = torch.from_numpy(
+            self.experience_replay.values).to(self.device)
+        actions_mask = torch.from_numpy(
+            self.experience_replay.actions_mask).to(self.device)
         returns = advantages + values
 
         # split the data into batches
@@ -233,21 +249,28 @@ class PPO(nn.Module):
                 end = (batch_index + 1) * self.experience_replay.minibatch_size
                 indice_batch = indices[start:end]
                 advantages_batch = advantages[indice_batch]
-                normalized_advantages = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
+                normalized_advantages = (
+                    advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
                 self.number_epochs += 1
 
-                new_dist, new_values = self.forward(states[indice_batch], actions_mask[indice_batch])
+                new_dist, new_values = self.forward(
+                    states[indice_batch], actions_mask[indice_batch])
                 log_pi = new_dist.log_prob(actions[indice_batch])
 
-                ratio = torch.exp(log_pi - old_log_probs[indice_batch].detach())
+                ratio = torch.exp(
+                    log_pi - old_log_probs[indice_batch].detach())
                 surr1 = ratio * normalized_advantages
-                surr2 = torch.clamp(ratio, 1 - 0.2, 1 + 0.2) * normalized_advantages
+                surr2 = torch.clamp(ratio, 1 - 0.2, 1 + 0.2) * \
+                    normalized_advantages
                 actor_loss = -torch.min(surr1, surr2).mean()
-                critic_loss = F.mse_loss(new_values.squeeze(), returns[indice_batch])
+                critic_loss = F.mse_loss(
+                    new_values.squeeze(), returns[indice_batch])
 
                 entropy_loss = new_dist.entropy().mean()
-                self.writer.add_scalar('entropy', entropy_loss, self.number_epochs)
-                self.writer.add_scalar('critic', critic_loss, self.number_epochs)
+                self.writer.add_scalar(
+                    'entropy', entropy_loss, self.number_epochs)
+                self.writer.add_scalar(
+                    'critic', critic_loss, self.number_epochs)
                 self.writer.add_scalar('actor', actor_loss, self.number_epochs)
 
                 loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy_loss

@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import os
 
+
 class DQN(nn.Module):
     class ExperienceReplay():
 
@@ -48,15 +49,18 @@ class DQN(nn.Module):
             return self.size >= self.sample_size
 
     def __init__(self, memory_size, batch_size, gamma, epsilon, epsilon_decay, epsilon_min, lr, state_size, action_size,
-                 env_name, seed=0,agent_index=0
+                 env_name, seed=0, agent_index=0
                  ):
         super(DQN, self).__init__()
         # create a folder for the tensorboard logs
         os.makedirs(env_name + "_DQN/" + str(agent_index), exist_ok=True)
-        self.writer = SummaryWriter(log_dir=env_name + "_DQN/" + str(agent_index))
+        self.writer = SummaryWriter(
+            log_dir=env_name + "_DQN/" + str(agent_index))
         self.batch_size = batch_size
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.experience_replay = self.ExperienceReplay(memory_size, batch_size, state_size, action_size)
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu")
+        self.experience_replay = self.ExperienceReplay(
+            memory_size, batch_size, state_size, action_size)
         self.gamma = gamma
         self.seed = np.random.seed(seed)
         self.epsilon = epsilon
@@ -93,17 +97,21 @@ class DQN(nn.Module):
                 q_values = self.network(state)
                 if mask is not None:
                     masked_q_values = q_values.clone()
-                    masked_q_values[mask == 0] = float('-inf')  # Set illegal moves to negative infinity
+                    # Set illegal moves to negative infinity
+                    masked_q_values[mask == 0] = float('-inf')
                     return torch.argmax(masked_q_values).item()
                 else:
                     return torch.argmax(q_values).item()
             else:
                 if np.random.rand() < self.epsilon:
                     if mask is not None:
-                        legal_actions = np.where(mask == 1)[0]  # Get indices of legal actions
+                        # Get indices of legal actions
+                        legal_actions = np.where(mask == 1)[0]
                         if len(legal_actions) > 0:
-                            legal_probs = np.ones(len(mask)) * mask  # Convert mask to probabilities
-                            legal_probs /= np.sum(legal_probs)  # Normalize probabilities
+                            # Convert mask to probabilities
+                            legal_probs = np.ones(len(mask)) * mask
+                            # Normalize probabilities
+                            legal_probs /= np.sum(legal_probs)
                             return np.random.choice(self.action_size, p=legal_probs)
                         else:
                             # If all actions are illegal, choose randomly from all actions
@@ -115,15 +123,18 @@ class DQN(nn.Module):
                     q_values = self.network(state)
                     if mask is not None:
                         masked_q_values = q_values.clone()
-                        masked_q_values[mask == 0] = float('-inf')  # Set illegal moves to negative infinity
+                        # Set illegal moves to negative infinity
+                        masked_q_values[mask == 0] = float('-inf')
                         return torch.argmax(masked_q_values).item()
                     else:
                         return torch.argmax(q_values).item()
 
     def train_agent(self):
 
-        batch_index = np.random.choice((self.experience_replay.size), self.batch_size)
-        state, action, reward, next_state, done, mask = self.experience_replay.sample(batch_index)
+        batch_index = np.random.choice(
+            (self.experience_replay.size), self.batch_size)
+        state, action, reward, next_state, done, mask = self.experience_replay.sample(
+            batch_index)
         state = torch.from_numpy(state).float().to(self.device)
         action = torch.from_numpy(action).long().to(self.device)
         reward = torch.from_numpy(reward).float().to(self.device)
@@ -132,7 +143,9 @@ class DQN(nn.Module):
         done = torch.from_numpy(done).float().to(self.device)
         prediction = self.network(state).gather(1, action)
         with torch.no_grad():
-            target = reward + self.gamma * self.target_network(next_state).detach().max(1)[0].unsqueeze(1) * (1 - done)
+            target = reward + self.gamma * \
+                self.target_network(next_state).detach().max(1)[
+                    0].unsqueeze(1) * (1 - done)
         loss = self.loss(prediction, target)
         self.writer.add_scalar("Q loss", loss, self.number_update)
         self.number_update += 1
@@ -143,7 +156,8 @@ class DQN(nn.Module):
 
     def soft_update(self, tau):
         for target_param, local_param in zip(self.target_network.parameters(), self.network.parameters()):
-            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+            target_param.data.copy_(
+                tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.network.state_dict())
@@ -172,4 +186,3 @@ class DQN(nn.Module):
             masked_q_values = q_values.clone()
             masked_q_values[mask == 0] = float('-inf')
             return F.softmax(masked_q_values, dim=0).cpu().numpy()
-

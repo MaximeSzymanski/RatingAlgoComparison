@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 import os
 
+
 class A2C(nn.Module):
     class ExperienceReplay():
         def __init__(self, minibatch_size, buffer_size, state_size, num_workers=1, action_size=6, horizon=128):
@@ -30,8 +31,10 @@ class A2C(nn.Module):
             self.states = np.empty(buffer_state_size, dtype=np.float32)
             self.next_states = np.empty(buffer_state_size, dtype=np.float32)
             self.dones = np.empty(transformed_buffer_size, dtype=np.int32)
-            self.old_log_probs = np.empty(transformed_buffer_size, dtype=np.float32)
-            self.advantages = np.empty(transformed_buffer_size, dtype=np.float32)
+            self.old_log_probs = np.empty(
+                transformed_buffer_size, dtype=np.float32)
+            self.advantages = np.empty(
+                transformed_buffer_size, dtype=np.float32)
             self.values = np.empty(transformed_buffer_size, dtype=np.float32)
             self.head = 0
             self.size = 0
@@ -67,9 +70,11 @@ class A2C(nn.Module):
             # flatten the buffer
             self.states = self.states.reshape(-1, self.states.shape[-1])
             self.actions = self.actions.flatten()
-            self.actions_mask = self.actions_mask.reshape(-1, self.actions_mask.shape[-1])
+            self.actions_mask = self.actions_mask.reshape(
+                -1, self.actions_mask.shape[-1])
             self.rewards = self.rewards.flatten()
-            self.next_states = self.next_states.reshape(-1, self.next_states.shape[-1])
+            self.next_states = self.next_states.reshape(
+                -1, self.next_states.shape[-1])
             self.dones = self.dones.flatten()
             self.old_log_probs = self.old_log_probs.flatten()
             self.values = self.values.flatten()
@@ -109,17 +114,21 @@ class A2C(nn.Module):
             nn.Linear(64, 1)
         )
         self.number_epochs = 0
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu")
         self.to(self.device)
-        self.optimizer = RMSprop(self.parameters(), lr=0.0002, alpha=0.99, eps=1e-5)
+        self.optimizer = RMSprop(
+            self.parameters(), lr=0.0002, alpha=0.99, eps=1e-5)
 
         os.makedirs(env_name + "_A2C/" + str(agent_index), exist_ok=True)
-        self.writer = SummaryWriter(log_dir=env_name + "_A2C/" + str(agent_index))
+        self.writer = SummaryWriter(
+            log_dir=env_name + "_A2C/" + str(agent_index))
         self.num_workers = num_workers
         self.num_steps = num_steps
         self.batch_size = num_steps
         self.experience_replay = self.ExperienceReplay(minibatch_size=self.batch_size, buffer_size=num_steps,
-                                                       state_size=(state_size,), num_workers=num_workers,
+                                                       state_size=(
+                                                           state_size,), num_workers=num_workers,
                                                        action_size=action_size, horizon=num_steps)
 
         self.ortogonal_initialization()
@@ -163,7 +172,8 @@ class A2C(nn.Module):
 
     def decay_learning_rate(self, optimizer, decay_rate=0.99):
         print("Decaying learning rate")
-        self.writer.add_scalar("Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
+        self.writer.add_scalar(
+            "Learning rate", optimizer.param_groups[0]['lr'], self.number_epochs)
         for param_group in optimizer.param_groups:
             param_group['lr'] *= decay_rate
 
@@ -171,7 +181,8 @@ class A2C(nn.Module):
         torch.save(self.state_dict(), path)
 
     def load_model(self, path='a2c.pth'):
-        self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
+        self.load_state_dict(torch.load(
+            path, map_location=torch.device('cpu')))
 
     def compute_advantages(self, gamma=0.99, lamda=1):
 
@@ -185,7 +196,8 @@ class A2C(nn.Module):
                 mask = 1 - self.experience_replay.dones[i, worker]
                 last_value = last_value * mask
                 last_advantage = last_advantage * mask
-                delta = self.experience_replay.rewards[i, worker] + gamma * last_value - values[i]
+                delta = self.experience_replay.rewards[i,
+                                                       worker] + gamma * last_value - values[i]
                 last_advantage = delta + gamma * lamda * last_advantage
                 advantages[i] = last_advantage
                 last_value = values[i]
@@ -200,13 +212,18 @@ class A2C(nn.Module):
 
         advantages = self.compute_advantages(gamma=0.99, lamda=1)
         # convert the data to torch tensors
-        states = torch.from_numpy(self.experience_replay.states).to(self.device)
-        actions = torch.from_numpy(self.experience_replay.actions).to(self.device)
-        old_log_probs = torch.from_numpy(self.experience_replay.old_log_probs).to(self.device).detach()
+        states = torch.from_numpy(
+            self.experience_replay.states).to(self.device)
+        actions = torch.from_numpy(
+            self.experience_replay.actions).to(self.device)
+        old_log_probs = torch.from_numpy(
+            self.experience_replay.old_log_probs).to(self.device).detach()
 
         advantages = torch.from_numpy(advantages).to(self.device)
-        values = torch.from_numpy(self.experience_replay.values).to(self.device)
-        actions_mask = torch.from_numpy(self.experience_replay.actions_mask).to(self.device)
+        values = torch.from_numpy(
+            self.experience_replay.values).to(self.device)
+        actions_mask = torch.from_numpy(
+            self.experience_replay.actions_mask).to(self.device)
         returns = advantages + values
 
         # split the data into batches
@@ -225,12 +242,13 @@ class A2C(nn.Module):
             indice_batch = indices[start:end]
             advantages_batch = advantages[indice_batch]
 
-            new_dist, new_values = self.forward(states[indice_batch], actions_mask[indice_batch])
+            new_dist, new_values = self.forward(
+                states[indice_batch], actions_mask[indice_batch])
             log_pi = new_dist.log_prob(actions[indice_batch])
 
-
             actor_loss = (- log_pi * advantages_batch).mean()
-            critic_loss = F.mse_loss(new_values.squeeze(), returns[indice_batch])
+            critic_loss = F.mse_loss(
+                new_values.squeeze(), returns[indice_batch])
             entropy_loss = new_dist.entropy().mean()
             self.writer.add_scalar('entropy', entropy_loss, self.number_epochs)
             self.writer.add_scalar('critic', critic_loss, self.number_epochs)
@@ -243,7 +261,7 @@ class A2C(nn.Module):
             self.optimizer.step()
             self.number_epochs += 1
         self.experience_replay.clean_buffer()
-            # agent.decay_learning_rate(optimizer)
+        # agent.decay_learning_rate(optimizer)
 
         # create the dataset
 

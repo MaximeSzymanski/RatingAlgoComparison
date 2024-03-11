@@ -43,7 +43,8 @@ def plot_strategy_landscape(agent_data: Dict[int, Dict[int, int]], agents_type: 
 
     for (index, agent), agent_type in zip(enumerate(agent_data), agents_type):
         total_actions = sum(agent.values())
-        x_pos = sum((agent[action] / total_actions) * index_action for index_action, action in enumerate(agent.keys()))
+        x_pos = sum((agent[action] / total_actions) *
+                    index_action for index_action, action in enumerate(agent.keys()))
         y_pos = max(agent[action] / total_actions for action in agent.keys())
         color = colors(agents_type.index(agent_type))
         if agent_type_plotted[agent_type] == False:
@@ -80,7 +81,8 @@ def plot_strategy_landscape_elo_fading(agent_data: Dict[int, Dict[int, int]], ag
     colors = plt.cm.get_cmap('tab20', len(list_types))
     for (index, agent), agent_type in zip(enumerate(agent_data), agents_type):
         total_actions = sum(agent.values())
-        x_pos = sum((agent[action] / total_actions) * index_action for index_action, action in enumerate(agent.keys()))
+        x_pos = sum((agent[action] / total_actions) *
+                    index_action for index_action, action in enumerate(agent.keys()))
         y_pos = max(agent[action] / total_actions for action in agent.keys())
         color = colors(list_types.index(agent_type))
         if not agent_type_plotted[agent_type]:
@@ -109,7 +111,8 @@ def plot_diversity_matrix(diversity_matrix: np.ndarray, agents_type: List[str], 
         agents_type (List[str]): The types of agents.
         index_file (int): The index of the file (optional).
     """
-    diversity_matrix = np.triu(diversity_matrix, k=1) + np.triu(diversity_matrix, k=1).T
+    diversity_matrix = np.triu(diversity_matrix, k=1) + \
+        np.triu(diversity_matrix, k=1).T
     plt.figure(figsize=(10, 10))
     plt.imshow(diversity_matrix, cmap='bwr', interpolation='nearest')
     plt.xticks(range(len(agents_type)), agents_type, rotation=90)
@@ -130,7 +133,8 @@ def plot_and_save_diversity_matrix(diversity_matrix: np.ndarray, agents: List[Ag
     """
     plt.imshow(diversity_matrix, cmap='bwr', interpolation='nearest')
     plt.colorbar()
-    plt.xticks(np.arange(len(agents)), [agent.policy_name for agent in agents], rotation=90)
+    plt.xticks(np.arange(len(agents)), [
+               agent.policy_name for agent in agents], rotation=90)
     plt.yticks(np.arange(len(agents)), [agent.policy_name for agent in agents])
     plt.title("Diversity Matrix " + str(index_file))
     plt.savefig(f"diversity_matrix/diversity_matrix_{index_file}.png")
@@ -202,11 +206,13 @@ def plot_and_save_diversity_over_time_per_policy_type(diversity_over_time: Dict[
         diversity_mean = np.mean(diversity, axis=1)
         diversity_std = np.std(diversity, axis=1)
         plt.plot(diversity_mean, label=f"{policy_type} Mean Diversity")
-        plt.fill_between(np.arange(len(diversity_mean)), diversity_mean - diversity_std, diversity_mean + diversity_std, alpha=0.3)
+        plt.fill_between(np.arange(len(diversity_mean)), diversity_mean -
+                         diversity_std, diversity_mean + diversity_std, alpha=0.3)
     plt.xlabel("Number of Rounds")
     plt.ylabel("Diversity")
     plt.legend()
     plt.title("Diversity Over Time Per Policy Type")
     plt.plot()
-    plt.savefig(f"diversity_score_per_agent/diversity_score_per_policy_type_{number_round}.png")
+    plt.savefig(
+        f"diversity_score_per_agent/diversity_score_per_policy_type_{number_round}.png")
     plt.clf()
