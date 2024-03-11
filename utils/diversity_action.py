@@ -9,7 +9,7 @@ from functools import cache
 
 class DiversityAction:
 
-    def __init__(self, number_agent: int , number_round: int , non_random_deterministic_agent: int ,
+    def __init__(self, number_agent: int, number_round: int , non_random_deterministic_agent: int ,
                  id_agent_to_policy: dict[int, Policy]) -> None:
         """
         Initialize DiversityAction object.
