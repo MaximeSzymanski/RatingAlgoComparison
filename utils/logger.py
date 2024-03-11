@@ -36,7 +36,6 @@ class Logger():
         """
         # create the folder if it does not exist
         os.makedirs("diversity_score_per_agent", exist_ok=True)
-
         plot_and_save_diversity_over_time_per_policy_type(diversity_over_time=diversity_over_time, number_round=number_round)
 
 

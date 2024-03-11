@@ -178,7 +178,7 @@ def plot_and_save_diversity_over_time_global(diversity_over_time: np.array, numb
     plt.legend()
     plt.title("Diversity Over Time")
     plt.plot()
-    plt.savefig("diversity_score/diversity_score_" + str(number_round) + ".png")
+    plt.savefig("diversity_score_global/diversity_score_" + str(number_round) + ".png")
     plt.clf()
 
 def plot_and_save_diversity_over_time_per_policy_type(diversity_over_time: dict[Policy,np.array], number_round=0) -> None:
@@ -202,5 +202,5 @@ def plot_and_save_diversity_over_time_per_policy_type(diversity_over_time: dict[
     plt.legend()
     plt.title("Diversity Over Time Per Policy Type")
     plt.plot()
-    plt.savefig("diversity_score/diversity_score_per_policy_type_" + str(number_round) + ".png")
+    plt.savefig("diversity_score_per_agent/diversity_score_per_policy_type_" + str(number_round) + ".png")
     plt.clf()

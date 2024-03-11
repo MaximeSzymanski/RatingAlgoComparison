@@ -761,9 +761,9 @@ class Population():
 
 
 agent_counts = {
-    Policy.DQN: 1,
-    Policy.PPO: 1,
-    Policy.A2C: 1,
+    Policy.DQN: 2,
+    Policy.PPO: 2,
+    Policy.A2C: 2,
     Policy.Random: 1,
     Policy.Deterministic: 1
 }
