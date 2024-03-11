@@ -68,14 +68,14 @@ class Population():
         self.agents.remove(agent)
 
 
-    def compute_diversity(self,num_tests : int = 1) -> float:
+    def compute_diversity(self,num_tests : int = 1000) -> float:
         """
         Compute the diversity of the population by playing against random agents and computing the diversity of the states.
         :return: The diversity of the population.
         """
 
         agents_data = {}
-        for current_agent in self.agents:
+        for current_agent in tqdm(self.agents):
             agents_data[current_agent.id] = []
             # get a random agent
             for fight in range(num_tests):
@@ -774,6 +774,16 @@ texas_population = Population(connect_four_v3.env(),agent_counts)
 
 #texas_population.training_loop(number_round=1000,num_fights=10,use_rating_in_reward=False)
 matrix = (texas_population.compute_diversity())
+# plot the matrix with the name of the agents on the x and y axis
+# sort population by name
+texas_population.agents.sort(key=lambda x: x.policy_name)
+
+plt.xticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents],rotation=90)
+plt.yticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents])
+plt.imshow(matrix)
+plt.colorbar()
+plt.show()
+
 
 
 """action_list = []
