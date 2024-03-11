@@ -21,6 +21,13 @@ class Random():
     def can_train(self):
         return False
 
+    def get_action_distribution(self,state,mask):
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+        return mask/np.sum(mask)
 
 
 

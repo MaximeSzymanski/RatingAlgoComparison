@@ -40,4 +40,12 @@ class Agent():
         self.id = id
         self.num_fights = 0
 
+        def get_action_distribution(self, state : np.ndarray, mask : np.ndarray) -> np.ndarray:
+            """
+            Get the action distribution of the agent
+            :param state: The state of the environment
+            :return: The action distribution of the agent
+            """
+            return self.policy.get_action_distribution(state, mask)
+
 

@@ -160,4 +160,16 @@ class DQN(nn.Module):
         self.network.load_state_dict(torch.load(path))
         self.target_network.load_state_dict(torch.load(path))
 
+    def get_action_distribution(self, state, mask):
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+        with torch.no_grad():
+            state = torch.from_numpy(state).to(self.device).float()
+            q_values = self.network(state)
+            masked_q_values = q_values.clone()
+            masked_q_values[mask == 0] = float('-inf')
+            return F.softmax(masked_q_values, dim=0).cpu().numpy()
 

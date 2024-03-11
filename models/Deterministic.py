@@ -13,6 +13,21 @@ class Deterministic():
         self.experience_replay = self.ExperienceReplay(0,0,0,0)
         self.writer = SummaryWriter(log_dir="Random")
 
+    def get_action_distribution(self,state,mask):
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+
+        if mask[self.action_index] == 0:
+            return mask/np.sum(mask)
+        else:
+            array = np.zeros(self.action_size)
+            array[self.action_index] = 1
+            return array
+
+
     def act(self,state,mask,deterministic=False):
         # check if the action is valid with the mask
         if mask[self.action_index] == 0:

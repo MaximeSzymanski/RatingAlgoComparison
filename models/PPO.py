@@ -143,6 +143,18 @@ class PPO(nn.Module):
 
         return dist, value
 
+    def get_action_distribution(self, state : np.ndarray, action_mask : np.ndarray) -> np.ndarray:
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+        with torch.no_grad():
+            state = torch.from_numpy(state).float().to(self.device)
+            action_mask = torch.from_numpy(action_mask).float().to(self.device)
+            dist, _ = self.forward(state, action_mask)
+            return dist.probs.cpu().detach().numpy()
+
     def get_action(self, obs, action_mask=None, deterministic=False):
         with torch.no_grad():
             obs = torch.from_numpy(obs).float().to(self.device)

@@ -68,7 +68,7 @@ class Population():
         self.agents.remove(agent)
 
 
-    def compute_diversity(self,num_tests : int = 1000) -> float:
+    def compute_diversity(self,num_tests : int = 10000) -> float:
         """
         Compute the diversity of the population by playing against random agents and computing the diversity of the states.
         :return: The diversity of the population.
@@ -328,6 +328,8 @@ class Population():
                     if agent == "player_0":
                         state = observation["observation"]
                         state = state.flatten()
+                        print(f"Agent policy : {agent_1.policy_name}")
+                        print(f"Action probs : {agent_1.policy.get_action_distribution(state, mask)}")
                         if agent_1.policy_type == Policy.PPO or agent_1.policy_type == Policy.A2C:
                             action, log_prob, value = agent_1.policy.get_action(state, mask)
                             past_log_prob_agent_1 = log_prob
@@ -761,19 +763,19 @@ class Population():
 
 
 agent_counts = {
-    Policy.DQN: 0,
-    Policy.PPO: 0,
-    Policy.A2C: 0,
-    Policy.Random: 0,
-    Policy.Deterministic: 2
+    Policy.DQN: 1,
+    Policy.PPO: 1,
+    Policy.A2C: 1,
+    Policy.Random: 1,
+    Policy.Deterministic: 1
 }
 texas_population = Population(connect_four_v3.env(),agent_counts)
 
 
 
 
-#texas_population.training_loop(number_round=1000,num_fights=10,use_rating_in_reward=False)
-matrix = (texas_population.compute_diversity())
+texas_population.training_loop(number_round=1000,num_fights=10,use_rating_in_reward=False)
+"""matrix = (texas_population.compute_diversity())
 # plot the matrix with the name of the agents on the x and y axis
 # sort population by name
 texas_population.agents.sort(key=lambda x: x.policy_name)
@@ -782,7 +784,7 @@ plt.xticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name f
 plt.yticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents])
 plt.imshow(matrix)
 plt.colorbar()
-plt.show()
+plt.show()"""
 
 
 

@@ -246,3 +246,15 @@ class A2C(nn.Module):
             # agent.decay_learning_rate(optimizer)
 
         # create the dataset
+
+    def get_action_distribution(self, state: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """
+        Get the action distribution of the agent
+        :param state: The state of the environment
+        :return: The action distribution of the agent
+        """
+        with torch.no_grad():
+            state = torch.from_numpy(state).float().to(self.device)
+            mask = torch.from_numpy(mask).float().to(self.device)
+            dist, _ = self.forward(state, mask)
+            return dist.probs.cpu().numpy()

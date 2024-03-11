@@ -40,10 +40,19 @@ class Diversity():
         is a list of numpy arrays. Each numpy array is a state of the agent.
         :return: The distance matrix of the agents
         """
+        # get the min number of states
+        min_number_states = min([len(agents_data[i]) for i in agents_data.keys()])
         for i in agents_data.keys():
             for j in agents_data.keys():
+                agent_i_states = agents_data[i]
+                agent_j_states = agents_data[j]
+                for state_agent_i, state_agent_j in zip(agent_i_states[:min_number_states], agent_j_states[:min_number_states]):
+                    self.distance_matrix[i][j] += self.compute_distance_between_two_states(state_agent_i, state_agent_j)
 
-                self.distance_matrix[i][j] = self.compute_distance_between_two_trajectories(agents_data[i], agents_data[j])
+        # normalize the distance matrix between 0 and 1
+        self.distance_matrix = self.distance_matrix / np.max(self.distance_matrix)
+
+
         return self.distance_matrix
 
     def compute_diversity(self, agents_data : Dict[int, list[np.array]]) -> float:
