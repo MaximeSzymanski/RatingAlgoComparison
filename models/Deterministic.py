@@ -19,7 +19,6 @@ class Deterministic():
         :param state: The state of the environment
         :return: The action distribution of the agent
         """
-        mask = np.ones_like(mask)
         if mask[self.action_index] == 0:
             return mask/np.sum(mask)
         else:

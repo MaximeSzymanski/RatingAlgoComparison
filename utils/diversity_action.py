@@ -69,26 +69,7 @@ class DiversityAction():
         for i in range(len(agents)):
             for j in range(len(agents)):
                 diversity = self.get_diversity_two_agents(agents[i], agents[j], list_states, list_masks)
-                self.distance_matrix[i, j] = diversity
-
-        # normalize all the diversity values between 0 and 1
-        # get all values in a list
-
-        # get max and min
-        # put the values back in the dictionary
-
-
-
-
-
-        # get the index of row-column name of the agents
-        # plot the matrix with the names of the agents
-        plt.figure(figsize=(10, 10))
-        plt.imshow(self.distance_matrix, cmap='hot', interpolation='nearest')
-        plt.xticks(range(len(agents)), [agent.policy_name for agent in agents], rotation=90)
-        plt.yticks(range(len(agents)), [agent.policy_name for agent in agents])
-        plt.colorbar()
-        plt.show()
+                self.distance_matrix[i, j] = diversity / len(list_states)
 
         return self.distance_matrix
 

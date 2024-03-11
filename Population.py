@@ -10,7 +10,7 @@ from utils.diversity import Diversity
 from pettingzoo.utils.env import AECEnv
 from pettingzoo.classic import connect_four_v3, tictactoe_v3,texas_holdem_v4
 import matplotlib.pyplot as plt
-from utils.plot import plot_winrate_over_time,plot_strategy_landscape,plot_strategy_landscape_elo_fading
+from utils.plot import plot_winrate_over_time,plot_strategy_landscape,plot_strategy_landscape_elo_fading, plot_diversity_matrix
 from rating.rating import Elo,TrueSkill
 from utils.policy import Policy
 from tqdm import tqdm
@@ -32,7 +32,7 @@ class Population():
                 self.add_agent(policy)
 
         self.diversity = DiversityAction(len(self.agents))
-
+        self.agents.sort(key=lambda x: x.policy_name)
 
     def get_id_new_agent(self) -> int:
         """
@@ -47,7 +47,7 @@ class Population():
         :return: None
         """
         if policy_type == Policy.Deterministic:
-            for action in self.deterministic_action[:2]:
+            for action in self.deterministic_action:
                 id = self.get_id_new_agent()
                 self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,action_deterministic=action))
                 self.rating.add_player(id)
@@ -74,19 +74,25 @@ class Population():
         Compute the diversity of the population by playing against random agents and computing the diversity of the states.
         :return: The diversity of the population.
         """
-
+        print(f"================= Computing Diversity =================")
+        print(f"Computing diversity for {num_tests} random states/masks against {len(self.agents)} agents")
+        print(f"=======================================================")
         list_states, list_masks = self.generate_random_states_and_masks(num_states=num_tests)
         diversity_matrix = self.diversity.compute_diversity(self.agents, list_states, list_masks)
         return (diversity_matrix)
 
-    def  training_loop(self, number_round=10,num_fights=10,use_rating_in_reward=False) -> None:
+    def  training_loop(self, number_round=10,num_fights_train=10,num_fight_test=10,use_rating_in_reward=False) -> None:
         """
         The training loop for the population.
         :param number_round: The number of rounds to train for.
+        :param num_fights_train: The number of fights to train for.
+        :param num_fight_test: The number of fights to test for.
         :return: None
         """
 
-
+        print(f"================= Training Loop =================")
+        print(f"Training for {number_round} rounds, {num_fights_train} fights for training and {num_fight_test} fights for testing")
+        print(f"=================================================")
         # get all agents name as a set
         policy_names = set([agent.policy_name for agent in self.agents])
         print(policy_names)
@@ -96,9 +102,13 @@ class Population():
             rating_per_policy_mean_round = {policy : [] for policy in policy_names}
             paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:
-                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=num_fights,use_rating_in_reward=use_rating_in_reward)
-                agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,num_fights=num_fights_train,use_rating_in_reward=use_rating_in_reward)
+                agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
                                                                        agent_2_index=agent_2)
+
+                agent_1_win = sum(agent_1_win)
+                agent_2_win = sum(agent_2_win)
+                draws = sum(draws)
                 draws = False
                 if agent_1_win > agent_2_win:
                     winner = agent_1
@@ -719,27 +729,23 @@ class Population():
 
 
 agent_counts = {
-    Policy.DQN: 0,
-    Policy.PPO: 0,
-    Policy.A2C: 0,
+    Policy.DQN: 1,
+    Policy.PPO: 1,
+    Policy.A2C: 1,
     Policy.Random: 1,
     Policy.Deterministic: 2
 }
 texas_population = Population(connect_four_v3.env(),agent_counts)
-texas_population.agents.sort(key=lambda x: x.policy_name)
+num_fights_train = 100
+num_fight_test = 1
+texas_population.training_loop(number_round=1000,num_fights_train=num_fights_train,
+                               num_fight_test=num_fight_test,use_rating_in_reward=True)
 
 diversity_matrix = (texas_population.compute_diversity(num_tests=500))
 # plot it
-plt.imshow(diversity_matrix)
-plt.colorbar()
-# with agent names on the x and y axis
-# sort population by name
-plt.xticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents],rotation=90)
-plt.yticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents])
+plot_diversity_matrix(diversity_matrix, [agent.policy_name for agent in texas_population.agents])
 
-plt.show()
 
-#texas_population.training_loop(number_round=1000,num_fights=10,use_rating_in_reward=False)
 """matrix = (texas_population.compute_diversity())
 # plot the matrix with the name of the agents on the x and y axis
 # sort population by name

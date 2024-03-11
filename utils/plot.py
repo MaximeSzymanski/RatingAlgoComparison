@@ -103,3 +103,22 @@ def plot_strategy_landscape_elo_fading(agent_data: dict, agents_type: List[str],
     plt.title("Strategy Landscape with ELO fading")
     plt.savefig(f"strategy_landscape_elo_fading_{index_file}.png")
     plt.clf()
+
+
+def plot_diversity_matrix(diversity_matrix: np.ndarray, agents_type: List[str], index_file=0) -> None:
+    """
+    Plot the diversity matrix of the agents.
+
+    Parameters:
+        diversity_matrix (np.ndarray): The diversity matrix of the agents.
+        agents_type (List[str]): The types of agents.
+        index_file (int): The index of the file (optional).
+    """
+    diversity_matrix = np.triu(diversity_matrix, k=1) + np.triu(diversity_matrix, k=1).T
+    plt.figure(figsize=(10, 10))
+    plt.imshow(diversity_matrix, cmap='gray', interpolation='nearest')
+    plt.xticks(range(len(agents_type)), agents_type, rotation=90)
+    plt.yticks(range(len(agents_type)), agents_type)
+    plt.title("Diversity Matrix")
+    plt.colorbar()
+    plt.show()
