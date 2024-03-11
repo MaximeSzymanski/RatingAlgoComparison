@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import torch
 import matplotlib.pyplot as plt
+from functools import cache
 class DiversityAction():
 
     def __init__(self,number_agent : int = 0) -> None:
@@ -21,11 +22,12 @@ class DiversityAction():
         for state, mask in zip(list_states, list_masks):
             action_distribution_agent1 = agent1.get_action_distribution(state, mask)
             action_distribution_agent2 = agent2.get_action_distribution(state, mask)
-            diversity += self.cross_entropy(action_distribution_agent1, action_distribution_agent2)
+            diversity += self.cross_entropy(action_distribution_agent1, action_distribution_agent2) + self.cross_entropy(action_distribution_agent2, action_distribution_agent1)
 
         # normalize the diversity
         diversity /= len(list_states)
         return diversity
+
     def cross_entropy(self, p: np.ndarray, q: np.ndarray) -> float:
         """
         Compute the cross entropy between two distributions

@@ -116,9 +116,19 @@ def plot_diversity_matrix(diversity_matrix: np.ndarray, agents_type: List[str], 
     """
     diversity_matrix = np.triu(diversity_matrix, k=1) + np.triu(diversity_matrix, k=1).T
     plt.figure(figsize=(10, 10))
-    plt.imshow(diversity_matrix, cmap='gray', interpolation='nearest')
+    plt.imshow(diversity_matrix, cmap='bwr', interpolation='nearest')
     plt.xticks(range(len(agents_type)), agents_type, rotation=90)
     plt.yticks(range(len(agents_type)), agents_type)
     plt.title("Diversity Matrix")
     plt.colorbar()
     plt.show()
+
+
+def plot_and_save_diversity_matrix(diversity_matrix: np.ndarray, agents: List[Agent], index_file: int) -> None:
+        plt.imshow(diversity_matrix, cmap='bwr', interpolation='nearest')
+        plt.colorbar()
+        plt.xticks(np.arange(len(agents)), [agent.policy_name for agent in agents], rotation=90)
+        plt.yticks(np.arange(len(agents)), [agent.policy_name for agent in agents])
+        plt.title("Diversity Matrix " + str(index_file))
+        plt.savefig("diversity_matrix/diversity_matrix_" + str(index_file) + ".png")
+        plt.clf()

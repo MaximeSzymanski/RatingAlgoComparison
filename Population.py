@@ -15,12 +15,15 @@ from rating.rating import Elo,TrueSkill
 from utils.policy import Policy
 from tqdm import tqdm
 from typing import List, Dict
+from utils.logger import Logger
+from functools import cache
 
 class Population():
     def __init__(self, env: AECEnv,agent_counts) -> None:
         self.agents: list[Agent] = []
         self.env: AECEnv = env
         self.state_size = 84
+        self.loger = Logger()
         self.rating = Elo()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
@@ -33,6 +36,10 @@ class Population():
 
         self.diversity = DiversityAction(len(self.agents))
         self.agents.sort(key=lambda x: x.policy_name)
+        # put "Deterministic" and "Random" at the end
+        self.agents.sort(key=lambda x: x.policy_type)
+        self.agents.sort(key=lambda x: x.policy_type == Policy.Deterministic)
+        self.agents.sort(key=lambda x: x.policy_type == Policy.Random)
 
     def get_id_new_agent(self) -> int:
         """
@@ -74,12 +81,12 @@ class Population():
         Compute the diversity of the population by playing against random agents and computing the diversity of the states.
         :return: The diversity of the population.
         """
-        print(f"================= Computing Diversity =================")
+        """print(f"================= Computing Diversity =================")
         print(f"Computing diversity for {num_tests} random states/masks against {len(self.agents)} agents")
-        print(f"=======================================================")
+        print(f"=======================================================")"""
         list_states, list_masks = self.generate_random_states_and_masks(num_states=num_tests)
         diversity_matrix = self.diversity.compute_diversity(self.agents, list_states, list_masks)
-        return (diversity_matrix)
+        return diversity_matrix
 
     def  training_loop(self, number_round=10,num_fights_train=10,num_fight_test=10,use_rating_in_reward=False) -> None:
         """
@@ -99,6 +106,7 @@ class Population():
         rating_per_policy_mean = {policy : [] for policy in policy_names}
         rating_per_policy_std = {policy : [] for policy in policy_names}
         for round in tqdm(range(number_round)):
+            self.loger.log_diversity_matrix(self.compute_diversity(),self.agents)
             rating_per_policy_mean_round = {policy : [] for policy in policy_names}
             paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:
@@ -733,36 +741,15 @@ agent_counts = {
     Policy.PPO: 1,
     Policy.A2C: 1,
     Policy.Random: 1,
-    Policy.Deterministic: 2
+    Policy.Deterministic: 1
 }
 texas_population = Population(connect_four_v3.env(),agent_counts)
 num_fights_train = 100
 num_fight_test = 1
-texas_population.training_loop(number_round=1000,num_fights_train=num_fights_train,
+texas_population.training_loop(number_round=500,num_fights_train=num_fights_train,
                                num_fight_test=num_fight_test,use_rating_in_reward=True)
 
-diversity_matrix = (texas_population.compute_diversity(num_tests=500))
+diversity_matrix = (texas_population.compute_diversity(num_tests=10))
 # plot it
 plot_diversity_matrix(diversity_matrix, [agent.policy_name for agent in texas_population.agents])
-
-
-"""matrix = (texas_population.compute_diversity())
-# plot the matrix with the name of the agents on the x and y axis
-# sort population by name
-texas_population.agents.sort(key=lambda x: x.policy_name)
-
-plt.xticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents],rotation=90)
-plt.yticks(ticks=range(len(texas_population.agents)),labels=[agent.policy_name for agent in texas_population.agents])
-plt.imshow(matrix)
-plt.colorbar()
-plt.show()"""
-
-
-
-"""action_list = []
-rating_dict = {}
-for index, agent in enumerate(texas_population.agents):
-    action_list.append(texas_population.test_agents_against_random(100,agent_id=index))
-    rating_dict[index] = texas_population.rating.get_rating(agent.id)"""
-#plot_strategy_landscape_rating_fading(action_list, [agent.policy_name for agent in texas_population.agents],agent_rating=rating_dict)
 
