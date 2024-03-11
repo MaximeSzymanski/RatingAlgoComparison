@@ -243,6 +243,7 @@ class TrueSkill(RatingSystem):
         - player_id (int): The unique identifier for the player.
         - rating (Rating): The initial rating for the player. Default is a new Rating instance.
         """
+
         if player_id not in self.ratings:
             self.ratings[player_id] = Rating()
 

@@ -66,7 +66,7 @@ class Population():
         if policy_type == Policy.Deterministic:
             for action in self.deterministic_action:
                 id = self.get_id_new_agent()
-                self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,action_deterministic=action))
+                self.agents.append(Agent(policy_type, self.state_size, self.action_size,id=id,action_deterministic=action,agent_index=self.number_agents_per_algo[policy_type]))
                 self.rating.add_player(id)
 
         else :
