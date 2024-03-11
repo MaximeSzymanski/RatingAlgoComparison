@@ -105,7 +105,7 @@ class Population():
         rating_per_policy_std = {policy : [] for policy in policy_names}
         for round in tqdm(range(number_round)):
             self.loger.log_diversity_matrix(self.compute_diversity(),self.agents)
-            plot_diversity_over_time(self.diversity.distance_score,number_round=round+1)
+            self.loger.log_diversity_over_time(self.diversity.distance_score,round)
             rating_per_policy_mean_round = {policy : [] for policy in policy_names}
             paired_agents = self.rating.find_similar_rating_pairs()
             for agent_1, agent_2 in paired_agents:
