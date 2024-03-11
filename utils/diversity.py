@@ -8,6 +8,7 @@ class Diversity():
         :param number_agents: The number of agents in the population
         """
         self.distance_matrix = np.zeros((number_agents, number_agents))
+        print(f"number_agents: {number_agents}")
 
 
 
@@ -27,6 +28,9 @@ class Diversity():
         :param trajectory2: The second trajectory
         :return: The distance between the two trajectories
         """
+        trajectory1 = np.array(trajectory1).flatten()
+        trajectory2 = np.array(trajectory2).flatten()
+
         return wasserstein_distance(u_values=trajectory1, v_values=trajectory2)
 
     def compute_distance_matrix(self, agents_data : Dict[int, list[np.array]]) -> np.ndarray:
@@ -38,6 +42,7 @@ class Diversity():
         """
         for i in agents_data.keys():
             for j in agents_data.keys():
+
                 self.distance_matrix[i][j] = self.compute_distance_between_two_trajectories(agents_data[i], agents_data[j])
         return self.distance_matrix
 
