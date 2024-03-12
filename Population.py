@@ -185,7 +185,7 @@ class Population:
 
 
 
-    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False,num_states_diversity : int  = 1000) -> None:
+    def training_loop(self,  num_fights_train=10,use_rating_in_reward=False,num_states_diversity : int  = 1000) -> None:
         """
         The training loop for the population.
 
@@ -208,14 +208,17 @@ class Population:
                 self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity)
 
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
+                # TODO : faire un Prioritized fictitious self-play
                 paired_agents = self.rating.find_similar_rating_pairs()
                 for agent_1, agent_2 in paired_agents:
                     _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
                                                     num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
-                    agent_1_win, agent_2_win, _ = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
-                                                                           agent_2_index=agent_2)
-                    agent_1_win = sum(agent_1_win)
-                    agent_2_win = sum(agent_2_win)
+                    agent_1_win_game_1, agent_2_win_game_1, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                                                                           agent_2_index=agent_2,agent_1_play_first=True)
+                    agent_1_win_game_2, agent_2_win_game_2, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                                                                           agent_2_index=agent_2,agent_1_play_first=False)
+                    agent_1_win = sum(agent_1_win_game_1) + sum(agent_1_win_game_2)
+                    agent_2_win = sum(agent_2_win_game_1) + sum(agent_2_win_game_2)
                     draws = False
                     if agent_1_win > agent_2_win:
                         winner = agent_1
@@ -398,7 +401,7 @@ class Population:
         agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(num_fights, agent_1_win, agent_2_win, draws)
         return agent_1_win, agent_2_win, draws
 
-    def test_fight_1vs1(self, num_fights: int = 2000, agent_1_index: int = 0, agent_2_index: int = 1) -> tuple[
+    def test_fight_1vs1(self, num_fights: int = 2000, agent_1_index: int = 0, agent_2_index: int = 1,agent_1_play_first : bool = True) -> tuple[
         List[int], List[int], List[int]]:
         """
         Simulates fights between two agents, without training in a deterministic manner.
@@ -412,8 +415,13 @@ class Population:
             Tuple containing lists of wins for each agent and draws.
         """
         # get a random agent
-        agent_1: Agent = self.agents[agent_1_index]
-        agent_2: Agent = self.agents[agent_2_index]
+        if agent_1_play_first:
+            agent_1: Agent = self.agents[agent_1_index]
+            agent_2: Agent = self.agents[agent_2_index]
+        else:
+            agent_1: Agent = self.agents[agent_2_index]
+            agent_2: Agent = self.agents[agent_1_index]
+
 
         agent_1_win = []
         agent_2_win = []
@@ -511,9 +519,12 @@ class Population:
                         past_done_agent_2 = termination or truncation
 
                 self.env.step(action)
-
-            self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1,
+            if agent_1_play_first:
+                self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1,
                                 current_episode_reward_agent_2)
+            else:
+                self.compute_winner(agent_2_win, agent_1_win, draws, current_episode_reward_agent_2,
+                                current_episode_reward_agent_1)
 
             self.env.close()
 
@@ -813,15 +824,15 @@ class Population:
 
 
 agent_counts = {
-    Policy.DQN: 1,
-    Policy.PPO: 1,
-    Policy.A2C: 1,
+    Policy.DQN: 10,
+    Policy.PPO: 10,
+    Policy.A2C: 10,
     Policy.Random: 1,
     Policy.Deterministic:1
 }
 texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100)
-num_fights_train = 100
-num_fight_test = 5
+num_fights_train = 25
+num_fight_test = 1
 texas_population.training_loop(num_fights_train=num_fights_train,
-                               num_fight_test=num_fight_test,use_rating_in_reward=False)
+                             use_rating_in_reward=False)
 

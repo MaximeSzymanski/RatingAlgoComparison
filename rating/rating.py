@@ -275,6 +275,23 @@ class TrueSkill(RatingSystem):
 
 
 
+    def exptect_result(self,player1_rating : Rating, player2_rating : Rating) -> float:
+        """
+        Calculate the expected outcome of a match.
+
+        Parameters:
+        - player1_rating (Rating): The rating of the player.
+        - player2_rating (Rating): The rating of the opponent.
+
+        Returns:
+        - float: The expected probability of the player winning.
+        """
+        delta_mu = player1_rating.mu - player2_rating.mu
+        sum_sigma = player1_rating.sigma ** 2 + player2_rating.sigma ** 2
+        return trueskill.backends.cdf(delta_mu / (2 * (sum_sigma + trueskill.BETA ** 2) ** 0.5))
+
+
+    
     def find_similar_rating_pairs(self) -> list:
         """
         Find pairs of agents with similar TrueSkill ratings, each having one opponent.
