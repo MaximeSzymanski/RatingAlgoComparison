@@ -1,5 +1,6 @@
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from functools import cache
 
 
 class Deterministic():
@@ -15,6 +16,7 @@ class Deterministic():
         self.action_index = action_index
         self.experience_replay = self.ExperienceReplay(0, 0, 0, 0)
         self.writer = SummaryWriter(log_dir="Random")
+
 
     def get_action_distribution(self, state, mask):
         """

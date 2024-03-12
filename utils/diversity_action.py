@@ -23,7 +23,7 @@ class Diversity():
         self.num_agents = num_agents
         self.agents = agents
 
-    def calculate_diversity_pair(self, agent1: Agent, agent2: Agent, states : np.array, masks : np.array) -> float:
+    def calculate_diversity_pair(self, agent1: Agent, agent2: Agent, states : list[np.array], masks :  list[np.array]) -> float:
         """
         Calculate the diversity between two agents. Use cross-entropy for now.
         """
@@ -48,7 +48,6 @@ class Diversity():
             for j, opponent in enumerate(agents):
                 if i == j:
                     continue
-
                 diversity_ij = self.calculate_diversity_pair(agent, opponent, states, masks)
                 self.diversity_per_agent[agent.id][opponent.id][num_trial, num_round] = diversity_ij
 

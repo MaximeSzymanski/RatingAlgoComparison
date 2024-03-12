@@ -151,6 +151,7 @@ class Population:
             state = state["observation"].flatten()
             states.append(state)
             masks.append(mask)
+
         return states, masks
 
     def remove_agent(self, agent: Agent) -> None:
@@ -182,8 +183,6 @@ class Population:
             self.logger.log_diversity_per_policy_trial_until_round(diversity_per_agent=self.diversity.get_diversity_per_type_of_policy_until_round_specific_trial(num_round=num_round,num_trial=num_trial),
                                                                     num_trial=num_trial, num_round=num_round)
 
-        if num_trial == self.num_trials - 1 and num_round == self.num_rounds - 1:
-            self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=num_round,num_trials=num_trial))
 
 
     def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False) -> None:
@@ -236,7 +235,7 @@ class Population:
                     rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
             self.reset_population()
-
+        self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1))
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> None:
         """
         Simulates fights between two agents.
@@ -812,15 +811,15 @@ class Population:
 
 
 agent_counts = {
-    Policy.DQN: 2,
-    Policy.PPO: 2,
-    Policy.A2C: 2,
+    Policy.DQN: 5,
+    Policy.PPO: 5,
+    Policy.A2C: 5,
     Policy.Random: 1,
     Policy.Deterministic:1
 }
-texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=5)
-num_fights_train = 5
+texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100)
+num_fights_train = 100
 num_fight_test = 1
 texas_population.training_loop(num_fights_train=num_fights_train,
-                               num_fight_test=num_fight_test,use_rating_in_reward=True)
+                               num_fight_test=num_fight_test,use_rating_in_reward=False)
 
