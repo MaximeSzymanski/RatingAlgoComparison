@@ -10,7 +10,7 @@ from functools import cache
 class DiversityAction:
 
     def __init__(self, number_agent: int, number_round: int, non_random_deterministic_agent: int,
-                 id_agent_to_policy: dict[int, Policy]) -> None:
+                 id_agent_to_policy: dict[int, Policy],num_trials: int) -> None:
         """
         Initialize DiversityAction object.
 
@@ -19,13 +19,24 @@ class DiversityAction:
             number_round (int): The number of rounds.
             non_random_deterministic_agent (int): The number of non-random and non-deterministic agents.
             id_agent_to_policy (dict[int, Policy]): A dictionary mapping agent IDs to policy types.
+            num_trials (int): The number of trials.
         """
-        self.total_distance_matrix = np.zeros((number_agent, number_agent))
+        self.total_distance_matrix = np.zeros((num_trials, number_agent, number_agent))
         self.non_random_deterministic_agent = non_random_deterministic_agent
         self.distance_score = np.zeros(
-            (number_round, self.non_random_deterministic_agent))
+            (num_trials,number_round, self.non_random_deterministic_agent))
         self.policy_per_id_agent = id_agent_to_policy
         self.current_round = 0
+        self.current_trial = 0
+        policy_to_plot = [policy for policy in Policy if policy not in [
+            Policy.Random, Policy.Deterministic]]
+        print(f"number of trials: {num_trials}")
+        self.distance_score_per_policy_type = {
+            policy: np.zeros((num_trials, self.distance_score.shape[1],
+                              sum(1 for agent_policy in self.policy_per_id_agent.values() if agent_policy == policy)))
+            for policy in policy_to_plot
+        }
+        self.num_trials = num_trials
 
     def get_diversity_two_agents(self, agent1: Agent, agent2: Agent, list_states: list[np.array],
                                  list_masks: list[np.array]) -> float:
@@ -106,21 +117,28 @@ class DiversityAction:
                     i].policy_type == Policy.Random or Policy.Deterministic, "The first agents must be non-random and non-deterministic"
 
         diversity = 0
+
         for i in range(len(agents)):
             for j in range(len(agents)):
                 diversity = self.get_diversity_two_agents(
                     agents[i], agents[j], list_states, list_masks)
-                self.total_distance_matrix[i, j] = diversity / len(list_states)
+                self.total_distance_matrix[self.current_trial,i, j] = diversity / len(list_states)
 
         self.update_distance_score()
         return self.total_distance_matrix
 
+    def update_trial(self) -> None:
+        """
+        Update the current trial.
+        """
+        self.current_trial = (self.current_trial + 1) % self.num_trials
+        self.current_round = 0
     def update_distance_score(self) -> None:
         """
         Compute the distance score only for the non-random and non-deterministic agents.
         """
-        self.distance_score[self.current_round] = np.sum(
-            self.total_distance_matrix[:self.non_random_deterministic_agent], axis=1)
+        self.distance_score[self.current_trial,self.current_round] = np.sum(
+            self.total_distance_matrix[self.current_trial,:self.non_random_deterministic_agent], axis=1)
         self.current_round += 1
 
     def get_distance_score_per_policy_type(self) -> dict[Policy, np.array]:
@@ -132,30 +150,26 @@ class DiversityAction:
         """
         policy_to_plot = [policy for policy in Policy if policy not in [
             Policy.Random, Policy.Deterministic]]
-        distance_score_per_policy_type = {
-            policy: np.zeros((self.distance_score.shape[0],
-                              sum(1 for agent_policy in self.policy_per_id_agent.values() if agent_policy == policy)))
-            for policy in policy_to_plot
-        }
+
         current_agent_index_for_current_policy = {
             policy: 0 for policy in policy_to_plot}
 
         for agent, index in enumerate(self.policy_per_id_agent.keys()):
             policy_type = self.policy_per_id_agent[agent]
             if policy_type in policy_to_plot:
-                distance_score_per_policy_type[policy_type][:,
-                                                            current_agent_index_for_current_policy[policy_type]] = self.distance_score[:, agent]
+                self.distance_score_per_policy_type[policy_type][self.current_trial, :,
+                                                            current_agent_index_for_current_policy[policy_type]] = self.distance_score[self.current_trial,:, agent]
                 current_agent_index_for_current_policy[policy_type] += 1
 
         for policy in policy_to_plot:
             agents_count = sum(
                 1 for agent_policy in self.policy_per_id_agent.values() if agent_policy == policy)
-            distance_score_per_policy_type[policy] /= agents_count
+            self.distance_score_per_policy_type[policy][self.current_trial] /= agents_count
             if agents_count == 1:
-                distance_score_per_policy_type[policy] = distance_score_per_policy_type[policy].reshape(
+                self.distance_score_per_policy_type[policy][self.current_trial] = self.distance_score_per_policy_type[policy][self.current_trial].reshape(
                     -1, 1)
 
-        return distance_score_per_policy_type
+        return self.distance_score_per_policy_type
 
     def get_distance_score_global(self) -> np.array:
         """
@@ -164,4 +178,8 @@ class DiversityAction:
         Returns:
             np.array: The distance score.
         """
+        print(f"distance score shape: {self.distance_score.shape}"
+                f"current_trial: {self.current_trial}")
+
         return self.distance_score
+

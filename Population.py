@@ -30,10 +30,9 @@ class Population:
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = list(range(self.action_size))
-        self.number_agents_per_algo = {policy: 0 for policy in Policy}
-        for policy, count in agent_counts.items():
-            for _ in range(count):
-                self.add_agent(policy)
+        self.agent_counts = agent_counts
+        self.reset_population()
+
 
     def get_agent_type_per_id(self, id: int) -> Policy:
         """
@@ -85,6 +84,25 @@ class Population:
             self.rating.add_player(id)
             self.number_agents_per_algo[policy_type] += 1
         self.agents.sort(key=self.policy_sort)
+    def build_population(self) -> None:
+        """
+        Build the population of agents.
+        """
+
+        for policy, count in self.agent_counts.items():
+            for _ in range(count):
+                self.add_agent(policy)
+
+    def reset_population(self) -> None:
+        """
+        Reset the population of agents.
+        """
+        self.agents = []
+        self.rating = TrueSkill()
+        self.number_agents_per_algo = {policy: 0 for policy in Policy}
+        self.build_population()
+
+
 
     def policy_sort(self, agent: Agent) -> float:
         """
@@ -128,7 +146,7 @@ class Population:
         diversity_matrix = self.diversity.compute_diversity(self.agents, list_states, list_masks)
         return diversity_matrix
 
-    def training_loop(self, number_round=10, num_fights_train=10, num_fight_test=10, use_rating_in_reward=False) -> None:
+    def training_loop(self, number_round=10, num_fights_train=10, num_fight_test=10, num_trial : int = 1 ,use_rating_in_reward=False) -> None:
         """
         The training loop for the population.
 
@@ -137,46 +155,57 @@ class Population:
         - num_fights_train (int): The number of fights to train for.
         - num_fight_test (int): The number of fights to test for.
         - use_rating_in_reward (bool): Whether to use the rating in the reward.
+        - num_trial (int): The number of trials to perform. Defaults to 1.
         """
+
+        print(f"number round: {number_round}")
         num_non_random_deterministic_agents = len([agent for agent in self.agents if agent.policy_type != Policy.Random and agent.policy_type != Policy.Deterministic])
         self.diversity = DiversityAction(number_agent=len(self.agents), number_round=number_round,
-                                         non_random_deterministic_agent=num_non_random_deterministic_agents, id_agent_to_policy=self.get_dict_agent_type_per_id())
+                                         non_random_deterministic_agent=num_non_random_deterministic_agents, id_agent_to_policy=self.get_dict_agent_type_per_id(),num_trials=num_trial)
         policy_names = set([agent.policy_name for agent in self.agents])
-        rating_per_policy_mean = {policy: [] for policy in policy_names}
-        rating_per_policy_std = {policy: [] for policy in policy_names}
-        for round in tqdm(range(number_round)):
-            if round != number_round - 1:
-                self.logger.log_diversity_matrix(self.compute_diversity(), self.agents)
-                self.logger.log_diversity_over_time_global(self.diversity.get_distance_score_global(), round)
-                self.logger.log_diversity_over_time_per_policy_type(self.diversity.get_distance_score_per_policy_type(), round)
-            rating_per_policy_mean_round = {policy: [] for policy in policy_names}
-            paired_agents = self.rating.find_similar_rating_pairs()
-            for agent_1, agent_2 in paired_agents:
-                _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
-                                                num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
-                agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
-                                                                       agent_2_index=agent_2)
-                agent_1_win = sum(agent_1_win)
-                agent_2_win = sum(agent_2_win)
-                draws = sum(draws)
-                draws = False
-                if agent_1_win > agent_2_win:
-                    winner = agent_1
-                    loser = agent_2
-                elif agent_1_win < agent_2_win:
-                    winner = agent_2
-                    loser = agent_1
-                else:
-                    draws = True
-                self.rating.update_ratings(winner, loser, draw=draws)
-            for agent in self.agents:
+        for trial in range(num_trial):
+            print(f"Trial {trial + 1}/{num_trial}")
+            rating_per_policy_mean = {policy: [] for policy in policy_names}
+            rating_per_policy_std = {policy: [] for policy in policy_names}
+
+            for round in tqdm(range(number_round)):
+
+                self.logger.log_diversity_matrix(self.compute_diversity(), self.agents,num_round=round, num_trials=trial)
+                self.logger.log_diversity_over_time_global(self.diversity.get_distance_score_global(), round, num_trials=trial)
+                self.logger.log_diversity_over_time_per_policy_type(self.diversity.get_distance_score_per_policy_type(), round, num_trials=trial)
+                rating_per_policy_mean_round = {policy: [] for policy in policy_names}
+                paired_agents = self.rating.find_similar_rating_pairs()
+                for agent_1, agent_2 in paired_agents:
+                    _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
+                                                    num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
+                    agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
+                                                                           agent_2_index=agent_2)
+                    agent_1_win = sum(agent_1_win)
+                    agent_2_win = sum(agent_2_win)
+                    draws = sum(draws)
+                    draws = False
+                    if agent_1_win > agent_2_win:
+                        winner = agent_1
+                        loser = agent_2
+                    elif agent_1_win < agent_2_win:
+                        winner = agent_2
+                        loser = agent_1
+                    else:
+                        draws = True
+                    self.rating.update_ratings(winner, loser, draw=draws)
+                for agent in self.agents:
+                    for policy in policy_names:
+                        if agent.policy_name == policy:
+                            rating_per_policy_mean_round[policy].append(self.rating.get_rating(agent.id, to_plot=False))
                 for policy in policy_names:
-                    if agent.policy_name == policy:
-                        rating_per_policy_mean_round[policy].append(self.rating.get_rating(agent.id, to_plot=False))
-            for policy in policy_names:
-                rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
-                rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
-        self.rating.plot_rating_per_policy(policy_names, rating_per_policy_mean, rating_per_policy_std)
+                    rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
+                    rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
+            self.rating.plot_rating_per_policy(policy_names, rating_per_policy_mean, rating_per_policy_std)
+            self.diversity.update_trial()
+            self.reset_population()
+        self.logger.log_diversity_over_time_global_all_trials(self.diversity.distance_score)
+        self.logger.log_diversity_over_time_per_policy_type_all_trials(self.diversity.distance_score_per_policy_type)
+        self.logger.log_diversity_matrix_all_trials(self.diversity.total_distance_matrix, self.agents)
 
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> None:
         """
@@ -758,9 +787,9 @@ agent_counts = {
     Policy.Deterministic: 1
 }
 texas_population = Population(connect_four_v3.env(),agent_counts)
-num_fights_train = 100
+num_fights_train = 50
 num_fight_test = 1
-texas_population.training_loop(number_round=500,num_fights_train=num_fights_train,
-                               num_fight_test=num_fight_test,use_rating_in_reward=True)
+texas_population.training_loop(number_round=100,num_fights_train=num_fights_train,
+                               num_fight_test=num_fight_test,use_rating_in_reward=True,num_trial=5)
 
-diversity_matrix = (texas_population.compute_diversity(num_tests=10))
+diversity_matrix = (texas_population.compute_diversity(num_tests=2))
