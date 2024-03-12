@@ -10,6 +10,7 @@ import trueskill
 class RatingSystem:
     def __init__(self):
         self.ratings = {}
+        self.name = "RatingSystem"
         self.base_rating = 0
 
     def add_player(self, player_id: int):
@@ -29,7 +30,7 @@ class RatingSystem:
         raise NotImplementedError
 
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
-                               rating_std: Dict[str, List[int]]) -> None:
+                               rating_std: Dict[str, List[int]],path : str, num_trial : int) -> None:
         """
         Plot the  rating of each policy over time.
 
@@ -63,9 +64,10 @@ class Elo(RatingSystem):
         super().__init__()
         self.k_factor = k_factor
         self.base_rating = 1000
+        self.name = "Elo"
 
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
-                               rating_std: Dict[str, List[int]]) -> None:
+                               rating_std: Dict[str, List[int]],num_trial : int) -> None:
         """
         Plot the Elo rating of each policy over time.
 
@@ -244,6 +246,7 @@ class Elo(RatingSystem):
 class TrueSkill(RatingSystem):
     def __init__(self):
         super().__init__()
+        self.name = "TrueSkill"
 
     def add_player(self, player_id: int):
         """
@@ -345,7 +348,7 @@ class TrueSkill(RatingSystem):
             return self.ratings.get(player_id).mu - 3 * self.ratings.get(player_id).sigma
 
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[Rating]],
-                               rating_std: Dict[str, List[Rating]]) -> None:
+                               rating_std: Dict[str, List[Rating]], path : str,num_trial : int) -> None:
         """
         Plot the TrueSkill rating of each policy over time.
 
@@ -381,5 +384,5 @@ class TrueSkill(RatingSystem):
         # put legend top left
         plt.legend(loc='upper left')
         plt.title("Rating Over Time")
-        plt.savefig('rating.png')
+        plt.savefig(f'{path}/rating_per_policy_{num_trial}.png')
         plt.clf()

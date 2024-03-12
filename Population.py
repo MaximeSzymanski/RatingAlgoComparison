@@ -131,7 +131,7 @@ class Population:
 
     # Add other methods here...
 
-    def generate_random_states_and_masks(self, num_states: int = 1000) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def generate_random_states_and_masks(self, num_states: int) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generates random states and masks.
 
@@ -164,7 +164,7 @@ class Population:
         self.rating.remove_player(agent.id)
         self.agents.remove(agent)
 
-    def update_diversity_matrix(self, num_trial: int, num_round: int) -> None:
+    def update_diversity_matrix(self, num_trial: int, num_round: int,num_states_diversity : int) -> None:
         """
         Log the diversity matrix.
 
@@ -172,7 +172,7 @@ class Population:
         - num_trial (int): The number of the trial.
         - num_round (int): The number of the round.
         """
-        states, masks = self.generate_random_states_and_masks()
+        states, masks = self.generate_random_states_and_masks(num_states_diversity)
 
         self.diversity.calculate_diversity_round(num_trial=num_trial, num_round=num_round, agents=self.agents, states=states,
                                                  masks=masks)
@@ -185,7 +185,7 @@ class Population:
 
 
 
-    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False) -> None:
+    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False,num_states_diversity : int  = 10) -> None:
         """
         The training loop for the population.
 
@@ -205,7 +205,7 @@ class Population:
             rating_per_policy_std = {policy: [] for policy in policy_names}
 
             for round in tqdm(range(self.num_rounds)):
-                self.update_diversity_matrix(num_round=round,num_trial= trial)
+                self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity)
 
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
                 paired_agents = self.rating.find_similar_rating_pairs()
@@ -234,6 +234,8 @@ class Population:
                 for policy in policy_names:
                     rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
+            self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
+                                               rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)
             self.reset_population()
         self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1))
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> None:
@@ -811,15 +813,15 @@ class Population:
 
 
 agent_counts = {
-    Policy.DQN: 5,
-    Policy.PPO: 5,
-    Policy.A2C: 5,
+    Policy.DQN: 1,
+    Policy.PPO: 1,
+    Policy.A2C: 1,
     Policy.Random: 1,
     Policy.Deterministic:1
 }
 texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100)
 num_fights_train = 100
-num_fight_test = 1
+num_fight_test = 5
 texas_population.training_loop(num_fights_train=num_fights_train,
                                num_fight_test=num_fight_test,use_rating_in_reward=False)
 

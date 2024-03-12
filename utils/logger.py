@@ -3,12 +3,30 @@ from utils.plot import *
 import os
 from Agent import Agent
 from utils.policy import Policy
+from rating.rating import RatingSystem
 
 class Logger():
     def __init__(self, log_file):
         os.makedirs("logs", exist_ok=True)
 
         pass
+
+    def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
+                               rating_std: Dict[str, List[int]],num_trial : int,rating : RatingSystem) -> None:
+        """
+        Plot the rating per policy.
+        Params:
+            policies (List[str]): The list of policies.
+            rating_mean (Dict[str, List[int]]): The mean rating per policy.
+            rating_std (Dict[str, List[int]]): The std rating per policy.
+        """
+
+        os.makedirs(f"logs/rating_per_policy_{rating.name}", exist_ok=True)
+        path = f"logs/rating_per_policy_{rating.name}"
+        rating.plot_rating_per_policy(policies=policies, rating_mean=rating_mean, rating_std=rating_std, path=path,num_trial=num_trial)
+
+
+
 
     def log_diversity_matrix(self, diversity_matrix : np.array, num_trial : int, num_round : int, agents : list[Agent]) -> None:
         """
