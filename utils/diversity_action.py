@@ -31,10 +31,15 @@ class Diversity():
         for state,mask in zip(states, masks):
             action_distribution1 = agent1.policy.get_action_distribution(state, mask)
             action_distribution2 = agent2.policy.get_action_distribution(state, mask)
-            diversity += self.cross_entropy(action_distribution1, action_distribution2) / len(states)
+            diversity += ( self.distribution_distance(action_distribution1, action_distribution2) / len(states))
         return diversity
 
 
+    def distribution_distance(self, p, q):
+        """
+        Compute the distance between two distributions.
+        """
+        return np.sum(np.abs(p - q))
     def cross_entropy(self, p, q):
         """
         Compute the cross entropy between two distributions.
@@ -73,7 +78,7 @@ class Diversity():
         """
         # use the diversity matrix to get the diversity of the agent. Sum over the line and the column where the agent is.
 
-        return (np.sum(self.diversity_matrix[num_trial, num_round, agent_id, :]) + np.sum(self.diversity_matrix[num_trial, num_round, :, agent_id]) ) / (self.num_agents - 1)
+        return (np.sum(self.diversity_matrix[num_trial, num_round, agent_id, :]))
 
 
     def get_diversity_per_type_of_policy_until_round_specific_trial(self, num_round: int,num_trial : int) -> np.array:
@@ -94,15 +99,14 @@ class Diversity():
             # get tbe diversity of the agent until the round num_round
             for i in range(num_round):
                 diversity = self.get_diversity_per_agent(agent.id, num_trial, i)
-                diversity_per_type[agent.policy_type][i, diversity_logs_per_type[agent.policy_type]] = diversity
+                diversity_per_type[agent.policy_type][i, diversity_logs_per_type[agent.policy_type]] += diversity
             diversity_logs_per_type[agent.policy_type] += 1
 
         for policy_type, diversities in diversity_per_type.items():
-            diversity_per_type[policy_type] = np.array(diversities) / agents_per_type[policy_type]
+            diversity_per_type[policy_type] = np.array(diversities)
             mean = np.mean(diversity_per_type[policy_type], axis=1)
             std = np.std(diversity_per_type[policy_type], axis=1)
             diversity_per_type[policy_type] = (mean, std)
-
 
         return diversity_per_type
 

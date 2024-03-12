@@ -185,7 +185,7 @@ class Population:
 
 
 
-    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False,num_states_diversity : int  = 10) -> None:
+    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False,num_states_diversity : int  = 1000) -> None:
         """
         The training loop for the population.
 
@@ -212,11 +212,10 @@ class Population:
                 for agent_1, agent_2 in paired_agents:
                     _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
                                                     num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
-                    agent_1_win, agent_2_win, draws = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
+                    agent_1_win, agent_2_win, _ = self.test_fight_1vs1(num_fights=num_fight_test, agent_1_index=agent_1,
                                                                            agent_2_index=agent_2)
                     agent_1_win = sum(agent_1_win)
                     agent_2_win = sum(agent_2_win)
-                    draws = sum(draws)
                     draws = False
                     if agent_1_win > agent_2_win:
                         winner = agent_1
@@ -238,7 +237,8 @@ class Population:
                                                rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)
             self.reset_population()
         self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1))
-    def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> None:
+    def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> tuple[
+        List[int], List[int], List[int]]:
         """
         Simulates fights between two agents.
 

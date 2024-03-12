@@ -53,7 +53,7 @@ class RatingSystem:
         """
         raise NotImplementedError
 
-    def update_ratings(self, winner_id: int, loser_id: int):
+    def update_ratings(self, winner_id: int, loser_id: int,draws : bool = False):
         """
         Update the ratings of two players after a match.
 
