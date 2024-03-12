@@ -16,6 +16,16 @@ class RatingSystem:
     def add_player(self, player_id: int):
         raise NotImplementedError
 
+    def update_id(self, new_id: int, old_id: int):
+        """
+        Update the id of a player.
+
+        Parameters:
+        - new_id (int): The new unique identifier for the player.
+        - old_id (int): The old unique identifier for the player.
+        """
+
+        self.ratings[new_id] = self.ratings.pop(old_id)
     def remove_player(self, player_id: int):
         """
         Remove a player from the Elo rating system.
@@ -28,6 +38,8 @@ class RatingSystem:
 
     def get_rating(self, player_id: int, to_plot=False) -> int:
         raise NotImplementedError
+
+
 
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
                                rating_std: Dict[str, List[int]],path : str, num_trial : int) -> None:
@@ -67,7 +79,7 @@ class Elo(RatingSystem):
         self.name = "Elo"
 
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
-                               rating_std: Dict[str, List[int]],num_trial : int) -> None:
+                               rating_std: Dict[str, List[int]],num_trial : int, path : str) -> None:
         """
         Plot the Elo rating of each policy over time.
 
@@ -97,6 +109,7 @@ class Elo(RatingSystem):
             y_std = np.array(rating_std[policy])
             plt.fill_between(x, y_mean - y_std, y_mean + y_std, alpha=0.3)
         # increase the size of the plot
+            # increase the size of the plot
         plt.gcf().set_size_inches(20, 15)
 
         plt.xlabel("Number of Fights")
@@ -105,7 +118,7 @@ class Elo(RatingSystem):
         # put legend top left
         plt.legend(loc='upper left')
         plt.title("Rating Over Time")
-        plt.savefig('rating.png')
+        plt.savefig(f'{path}/rating_per_policy_{num_trial}.png')
         plt.clf()
 
     def update_ratings(self, player1_id: int, player2_id: int, draw=False):
@@ -260,16 +273,7 @@ class TrueSkill(RatingSystem):
         if player_id not in self.ratings:
             self.ratings[player_id] = Rating()
 
-    def update_id(self, new_id: int,old_id: int):
-        """
-        Update the id of a player.
 
-        Parameters:
-        - new_id (int): The new unique identifier for the player.
-        - old_id (int): The old unique identifier for the player.
-        """
-
-        self.ratings[new_id] = self.ratings.pop(old_id)
 
     def find_similar_rating_pairs(self) -> list:
         """

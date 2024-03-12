@@ -2,7 +2,7 @@ from typing import List, Dict
 from pettingzoo.utils.env import AECEnv
 from utils.policy import Policy
 from utils.logger import Logger
-from rating.rating import TrueSkill
+from rating.rating import TrueSkill, Elo
 from  utils.diversity_action import Diversity
 from models.DQN import DQN
 from models.PPO import PPO
@@ -26,7 +26,7 @@ class Population:
         self.env: AECEnv = env
         self.state_size = 84
         self.logger = Logger("logs")
-        self.rating = TrueSkill()
+        self.rating = Elo()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = list(range(self.action_size))
@@ -108,7 +108,7 @@ class Population:
         Reset the population of agents.
         """
         self.agents = []
-        self.rating = TrueSkill()
+        self.rating = Elo()
         self.number_agents_per_algo = {policy: 0 for policy in Policy}
         self.build_population()
 
