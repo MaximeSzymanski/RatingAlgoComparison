@@ -73,6 +73,8 @@ class Agent():
         Returns:
             np.ndarray: The action distribution of the agent.
         """
+
+
         action_distribution = self.policy.get_action_distribution(state, mask)
         assert np.allclose(np.sum(action_distribution),
                            1), f"Action distribution of agent {self.id} does not sum to 1"

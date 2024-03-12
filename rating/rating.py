@@ -257,6 +257,17 @@ class TrueSkill(RatingSystem):
         if player_id not in self.ratings:
             self.ratings[player_id] = Rating()
 
+    def update_id(self, new_id: int,old_id: int):
+        """
+        Update the id of a player.
+
+        Parameters:
+        - new_id (int): The new unique identifier for the player.
+        - old_id (int): The old unique identifier for the player.
+        """
+
+        self.ratings[new_id] = self.ratings.pop(old_id)
+
     def find_similar_rating_pairs(self) -> list:
         """
         Find pairs of agents with similar TrueSkill ratings, each having one opponent.

@@ -2,8 +2,8 @@ from typing import List, Dict
 from pettingzoo.utils.env import AECEnv
 from utils.policy import Policy
 from utils.logger import Logger
-from utils.diversity_action import DiversityAction
 from rating.rating import TrueSkill
+from  utils.diversity_action import Diversity
 from models.DQN import DQN
 from models.PPO import PPO
 from models.A2C import A2C
@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import tqdm
 from pettingzoo.classic import connect_four_v3
 class Population:
-    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int]):
+    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int) -> None:
         """
         Initialize the population of agents.
 
@@ -25,13 +25,17 @@ class Population:
         self.agents: List[Agent] = []
         self.env: AECEnv = env
         self.state_size = 84
-        self.logger = Logger()
+        self.logger = Logger("logs")
         self.rating = TrueSkill()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = list(range(self.action_size))
         self.agent_counts = agent_counts
+        self.num_trials = num_trials
+        self.num_rounds = num_rounds
         self.reset_population()
+        self.diversity = Diversity(num_trials=num_trials, num_rounds=num_rounds, num_agents=len(self.agents), agents=self.agents)
+
 
 
     def get_agent_type_per_id(self, id: int) -> Policy:
@@ -84,6 +88,12 @@ class Population:
             self.rating.add_player(id)
             self.number_agents_per_algo[policy_type] += 1
         self.agents.sort(key=self.policy_sort)
+        # reassing the id of the agents based on the new order
+        for i, agent in enumerate(self.agents):
+            agent.id = i
+            self.rating.update_id(new_id=i, old_id=agent.id)
+
+
     def build_population(self) -> None:
         """
         Build the population of agents.
@@ -121,6 +131,27 @@ class Population:
 
     # Add other methods here...
 
+    def generate_random_states_and_masks(self, num_states: int = 1000) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """
+        Generates random states and masks.
+
+        Parameters:
+            num_states (int): Number of states to generate. Defaults to 1000.
+
+        Returns:
+            Tuple of lists containing random states and masks.
+        """
+        states = []
+        masks = []
+        while len(states) < num_states:
+            state = self.env.observation_space("player_1").sample()
+            mask = state["action_mask"]
+            if mask.sum() == 0:
+                continue
+            state = state["observation"].flatten()
+            states.append(state)
+            masks.append(mask)
+        return states, masks
 
     def remove_agent(self, agent: Agent) -> None:
         """
@@ -132,21 +163,30 @@ class Population:
         self.rating.remove_player(agent.id)
         self.agents.remove(agent)
 
-    def compute_diversity(self, num_tests: int = 100) -> np.ndarray:
+    def update_diversity_matrix(self, num_trial: int, num_round: int) -> None:
         """
-        Compute the diversity of the population.
+        Log the diversity matrix.
 
         Parameters:
-        - num_tests (int): Number of tests to perform. Defaults to 100.
-
-        Returns:
-        - np.ndarray: The diversity matrix.
+        - num_trial (int): The number of the trial.
+        - num_round (int): The number of the round.
         """
-        list_states, list_masks = self.generate_random_states_and_masks(num_states=num_tests)
-        diversity_matrix = self.diversity.compute_diversity(self.agents, list_states, list_masks)
-        return diversity_matrix
+        states, masks = self.generate_random_states_and_masks()
 
-    def training_loop(self, number_round=10, num_fights_train=10, num_fight_test=10, num_trial : int = 1 ,use_rating_in_reward=False) -> None:
+        self.diversity.calculate_diversity_round(num_trial=num_trial, num_round=num_round, agents=self.agents, states=states,
+                                                 masks=masks)
+        self.diversity.build_diversity_matrix_round(num_trial=num_trial, num_round=num_round)
+        if num_round > 1:
+            self.logger.log_diversity_matrix(diversity_matrix=self.diversity.get_diversity_matrix(num_trial=num_trial, num_round=num_round),
+                                                num_trial=num_trial, num_round=num_round, agents=self.agents)
+            self.logger.log_diversity_per_policy_trial_until_round(diversity_per_agent=self.diversity.get_diversity_per_type_of_policy_until_round_specific_trial(num_round=num_round,num_trial=num_trial),
+                                                                    num_trial=num_trial, num_round=num_round)
+
+        if num_trial == self.num_trials - 1 and num_round == self.num_rounds - 1:
+            self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=num_round,num_trials=num_trial))
+
+
+    def training_loop(self,  num_fights_train=10, num_fight_test=10,use_rating_in_reward=False) -> None:
         """
         The training loop for the population.
 
@@ -158,21 +198,16 @@ class Population:
         - num_trial (int): The number of trials to perform. Defaults to 1.
         """
 
-        print(f"number round: {number_round}")
         num_non_random_deterministic_agents = len([agent for agent in self.agents if agent.policy_type != Policy.Random and agent.policy_type != Policy.Deterministic])
-        self.diversity = DiversityAction(number_agent=len(self.agents), number_round=number_round,
-                                         non_random_deterministic_agent=num_non_random_deterministic_agents, id_agent_to_policy=self.get_dict_agent_type_per_id(),num_trials=num_trial)
+
         policy_names = set([agent.policy_name for agent in self.agents])
-        for trial in range(num_trial):
-            print(f"Trial {trial + 1}/{num_trial}")
+        for trial in range(self.num_trials):
             rating_per_policy_mean = {policy: [] for policy in policy_names}
             rating_per_policy_std = {policy: [] for policy in policy_names}
 
-            for round in tqdm(range(number_round)):
+            for round in tqdm(range(self.num_rounds)):
+                self.update_diversity_matrix(num_round=round,num_trial= trial)
 
-                self.logger.log_diversity_matrix(self.compute_diversity(), self.agents,num_round=round, num_trials=trial)
-                self.logger.log_diversity_over_time_global(self.diversity.get_distance_score_global(), round, num_trials=trial)
-                self.logger.log_diversity_over_time_per_policy_type(self.diversity.get_distance_score_per_policy_type(), round, num_trials=trial)
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
                 paired_agents = self.rating.find_similar_rating_pairs()
                 for agent_1, agent_2 in paired_agents:
@@ -200,12 +235,7 @@ class Population:
                 for policy in policy_names:
                     rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
-            self.rating.plot_rating_per_policy(policy_names, rating_per_policy_mean, rating_per_policy_std)
-            self.diversity.update_trial()
             self.reset_population()
-        self.logger.log_diversity_over_time_global_all_trials(self.diversity.distance_score)
-        self.logger.log_diversity_over_time_per_policy_type_all_trials(self.diversity.distance_score_per_policy_type)
-        self.logger.log_diversity_matrix_all_trials(self.diversity.total_distance_matrix, self.agents)
 
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> None:
         """
@@ -606,6 +636,8 @@ class Population:
         Returns:
             Tuple of lists containing random states and masks.
         """
+
+
         states = []
         masks = []
         while len(states) < num_states:
@@ -784,12 +816,11 @@ agent_counts = {
     Policy.PPO: 2,
     Policy.A2C: 2,
     Policy.Random: 1,
-    Policy.Deterministic: 1
+    Policy.Deterministic:1
 }
-texas_population = Population(connect_four_v3.env(),agent_counts)
-num_fights_train = 50
+texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=5)
+num_fights_train = 5
 num_fight_test = 1
-texas_population.training_loop(number_round=100,num_fights_train=num_fights_train,
-                               num_fight_test=num_fight_test,use_rating_in_reward=True,num_trial=5)
+texas_population.training_loop(num_fights_train=num_fights_train,
+                               num_fight_test=num_fight_test,use_rating_in_reward=True)
 
-diversity_matrix = (texas_population.compute_diversity(num_tests=2))

@@ -1,185 +1,146 @@
-from Agent import Agent
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-import torch
-from utils.policy import Policy
-import matplotlib.pyplot as plt
-from functools import cache
+from Agent import Agent
 
+class Diversity():
 
-class DiversityAction:
+    """
+    This class is used to calculate the diversity of the population of agents.
+    It should contains the diversity for each pair of agents, for each round and for each trial.
+    """
 
-    def __init__(self, number_agent: int, number_round: int, non_random_deterministic_agent: int,
-                 id_agent_to_policy: dict[int, Policy],num_trials: int) -> None:
+    def __init__(self, num_trials: int, num_rounds: int, num_agents: int, agents : list[Agent]) -> None:
         """
-        Initialize DiversityAction object.
-
-        Args:
-            number_agent (int): The number of agents.
-            number_round (int): The number of rounds.
-            non_random_deterministic_agent (int): The number of non-random and non-deterministic agents.
-            id_agent_to_policy (dict[int, Policy]): A dictionary mapping agent IDs to policy types.
-            num_trials (int): The number of trials.
+        Initialize the Diversity object.
         """
-        self.total_distance_matrix = np.zeros((num_trials, number_agent, number_agent))
-        self.non_random_deterministic_agent = non_random_deterministic_agent
-        self.distance_score = np.zeros(
-            (num_trials,number_round, self.non_random_deterministic_agent))
-        self.policy_per_id_agent = id_agent_to_policy
-        self.current_round = 0
-        self.current_trial = 0
-        policy_to_plot = [policy for policy in Policy if policy not in [
-            Policy.Random, Policy.Deterministic]]
-        print(f"number of trials: {num_trials}")
-        self.distance_score_per_policy_type = {
-            policy: np.zeros((num_trials, self.distance_score.shape[1],
-                              sum(1 for agent_policy in self.policy_per_id_agent.values() if agent_policy == policy)))
-            for policy in policy_to_plot
-        }
+        self.diversity_matrix = np.zeros((num_trials, num_rounds, num_agents, num_agents))
+        self.diversity_per_agent = {}
+        for agent in agents:
+            self.diversity_per_agent[agent.id] = {}
+            for opponent in agents:
+                self.diversity_per_agent[agent.id][opponent.id] =  np.zeros((num_trials, num_rounds))
         self.num_trials = num_trials
+        self.num_rounds = num_rounds
+        self.num_agents = num_agents
+        self.agents = agents
 
-    def get_diversity_two_agents(self, agent1: Agent, agent2: Agent, list_states: list[np.array],
-                                 list_masks: list[np.array]) -> float:
+    def calculate_diversity_pair(self, agent1: Agent, agent2: Agent, states : np.array, masks : np.array) -> float:
         """
-        Get the diversity between two agents.
-
-        Args:
-            agent1 (Agent): The first agent.
-            agent2 (Agent): The second agent.
-            list_states (list[np.array]): The list of states.
-            list_masks (list[np.array]): The list of masks.
-
-        Returns:
-            float: The diversity between the two agents.
+        Calculate the diversity between two agents. Use cross-entropy for now.
         """
         diversity = 0
-        for state, mask in zip(list_states, list_masks):
-            action_distribution_agent1 = agent1.get_action_distribution(
-                state, mask)
-            action_distribution_agent2 = agent2.get_action_distribution(
-                state, mask)
-            diversity += self.cross_entropy(action_distribution_agent1,
-                                            action_distribution_agent2) + self.cross_entropy(action_distribution_agent2,
-                                                                                             action_distribution_agent1)
-
-        # normalize the diversity
-        diversity /= len(list_states)
+        for state,mask in zip(states, masks):
+            action_distribution1 = agent1.policy.get_action_distribution(state, mask)
+            action_distribution2 = agent2.policy.get_action_distribution(state, mask)
+            diversity += self.cross_entropy(action_distribution1, action_distribution2) / len(states)
         return diversity
 
-    def cross_entropy(self, p: np.ndarray, q: np.ndarray) -> float:
+
+    def cross_entropy(self, p, q):
         """
         Compute the cross entropy between two distributions.
-
-        Args:
-            p (np.ndarray): First distribution.
-            q (np.ndarray): Second distribution.
-
-        Returns:
-            float: Cross entropy.
         """
-        assert p.shape == q.shape, "Distributions must have the same shape"
-        cross_entropy = -np.sum(p * np.log(q + 1e-10))
-        return cross_entropy
-
-    def KL_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
+        return -np.sum(p * np.log(q+1e-10))
+    def calculate_diversity_round(self, num_trial: int, num_round: int, agents: list[Agent], states : np.array, masks : np.array) -> None:
         """
-        Compute the KL divergence between two distributions.
-
-        Args:
-            p (np.ndarray): First distribution.
-            q (np.ndarray): Second distribution.
-
-        Returns:
-            float: KL divergence.
+        Calculate the diversity of the population of agents for a specific round and trial.
         """
-        assert p.shape == q.shape, "Distributions must have the same shape"
-        kl_divergence = np.sum(p * np.nan_to_num(np.log((p / (q + 1e-8)))))
-        return kl_divergence
+        for i, agent in enumerate(agents):
+            for j, opponent in enumerate(agents):
+                if i == j:
+                    continue
 
-    def compute_diversity(self, agents: list[Agent], list_states: list[np.array],
-                          list_masks: list[np.array]) -> np.array:
+                diversity_ij = self.calculate_diversity_pair(agent, opponent, states, masks)
+                self.diversity_per_agent[agent.id][opponent.id][num_trial, num_round] = diversity_ij
+
+
+    def build_diversity_matrix_round(self, num_trial: int, num_round: int) -> None:
         """
-        Compute the diversity of the population.
-
-        Args:
-            agents (list[Agent]): The agents.
-            list_states (list[np.array]): The list of states.
-            list_masks (list[np.array]): The list of masks.
-
-        Returns:
-            np.array: The diversity matrix of the agents.
+        Build the diversity matrix for a specific round and trial.
         """
-        assert len(
-            agents) >= self.non_random_deterministic_agent, "The number of non-random and non-deterministic agents is greater than the number of agents"
-        if self.non_random_deterministic_agent > 0:
-            for i in range(self.non_random_deterministic_agent):
-                assert not agents[
-                    i].policy_type == Policy.Random or Policy.Deterministic, "The first agents must be non-random and non-deterministic"
 
-        diversity = 0
+        for id, record_dict in self.diversity_per_agent.items():
+            for id2, record in record_dict.items():
+                self.diversity_matrix[num_trial, num_round, id, id2] = record[num_trial, num_round]
 
-        for i in range(len(agents)):
-            for j in range(len(agents)):
-                diversity = self.get_diversity_two_agents(
-                    agents[i], agents[j], list_states, list_masks)
-                self.total_distance_matrix[self.current_trial,i, j] = diversity / len(list_states)
-
-        self.update_distance_score()
-        return self.total_distance_matrix
-
-    def update_trial(self) -> None:
+    def get_diversity_matrix(self, num_trial: int, num_round: int) -> np.array:
         """
-        Update the current trial.
+        Get the diversity matrix.
         """
-        self.current_trial = (self.current_trial + 1) % self.num_trials
-        self.current_round = 0
-    def update_distance_score(self) -> None:
+        return self.diversity_matrix[num_trial, num_round, :, :]
+
+    def get_diversity_per_agent(self, agent_id: int, num_trial: int, num_round: int) -> np.array:
         """
-        Compute the distance score only for the non-random and non-deterministic agents.
+        Get the diversity for a specific agent. Sum over the line and the column to get the total diversity of the agent.
         """
-        self.distance_score[self.current_trial,self.current_round] = np.sum(
-            self.total_distance_matrix[self.current_trial,:self.non_random_deterministic_agent], axis=1)
-        self.current_round += 1
+        # use the diversity matrix to get the diversity of the agent. Sum over the line and the column where the agent is.
 
-    def get_distance_score_per_policy_type(self) -> dict[Policy, np.array]:
+        return (np.sum(self.diversity_matrix[num_trial, num_round, agent_id, :]) + np.sum(self.diversity_matrix[num_trial, num_round, :, agent_id]) ) / (self.num_agents - 1)
+
+
+    def get_diversity_per_type_of_policy_until_round_specific_trial(self, num_round: int,num_trial : int) -> np.array:
         """
-        Get the distance score per policy type.
-
-        Returns:
-            dict[Policy, np.array]: The distance score per policy type.
+        Get the diversity of each policy type. Diversity are averaged over policies of the same type (std is also computed).
         """
-        policy_to_plot = [policy for policy in Policy if policy not in [
-            Policy.Random, Policy.Deterministic]]
+        diversity_per_type = {}
+        # get number of agents per type
+        agents_per_type = {}
+        for agent in self.agents:
+            if agent.policy_type not in agents_per_type:
+                agents_per_type[agent.policy_type] = 0
+            agents_per_type[agent.policy_type] += 1
+        diversity_logs_per_type = {policy : 0 for policy in agents_per_type.keys()}
+        for agent in self.agents:
+            if agent.policy_type not in diversity_per_type:
+                diversity_per_type[agent.policy_type] = np.zeros((num_round, agents_per_type[agent.policy_type]))
+            # get tbe diversity of the agent until the round num_round
+            for i in range(num_round):
+                diversity = self.get_diversity_per_agent(agent.id, num_trial, i)
+                diversity_per_type[agent.policy_type][i, diversity_logs_per_type[agent.policy_type]] = diversity
+            diversity_logs_per_type[agent.policy_type] += 1
 
-        current_agent_index_for_current_policy = {
-            policy: 0 for policy in policy_to_plot}
+        for policy_type, diversities in diversity_per_type.items():
+            diversity_per_type[policy_type] = np.array(diversities) / agents_per_type[policy_type]
+            mean = np.mean(diversity_per_type[policy_type], axis=1)
+            std = np.std(diversity_per_type[policy_type], axis=1)
+            diversity_per_type[policy_type] = (mean, std)
 
-        for agent, index in enumerate(self.policy_per_id_agent.keys()):
-            policy_type = self.policy_per_id_agent[agent]
-            if policy_type in policy_to_plot:
-                self.distance_score_per_policy_type[policy_type][self.current_trial, :,
-                                                            current_agent_index_for_current_policy[policy_type]] = self.distance_score[self.current_trial,:, agent]
-                current_agent_index_for_current_policy[policy_type] += 1
 
-        for policy in policy_to_plot:
-            agents_count = sum(
-                1 for agent_policy in self.policy_per_id_agent.values() if agent_policy == policy)
-            self.distance_score_per_policy_type[policy][self.current_trial] /= agents_count
-            if agents_count == 1:
-                self.distance_score_per_policy_type[policy][self.current_trial] = self.distance_score_per_policy_type[policy][self.current_trial].reshape(
-                    -1, 1)
+        return diversity_per_type
 
-        return self.distance_score_per_policy_type
 
-    def get_distance_score_global(self) -> np.array:
+    def get_diversity_per_type_of_policy_all_trial(self,num_round: int, num_trials: int) -> np.array:
         """
-        Get the distance score.
-
-        Returns:
-            np.array: The distance score.
+        Get the diversity of each policy type. Diversity are averaged over policies of the same type (std is also computed). All is averaged over all trials.
         """
-        print(f"distance score shape: {self.distance_score.shape}"
-                f"current_trial: {self.current_trial}")
+        diversity_per_type = {}
+        # get number of agents per type
+        agents_per_type = {}
+        for agent in self.agents:
+            if agent.policy_type not in agents_per_type:
+                agents_per_type[agent.policy_type] = 0
+            agents_per_type[agent.policy_type] += 1
+        diversity_logs_per_type = {policy : 0 for policy in agents_per_type.keys()}
+        for agent in self.agents:
+            if agent.policy_type not in diversity_per_type:
+                diversity_per_type[agent.policy_type] = np.zeros((num_trials,num_round, agents_per_type[agent.policy_type]))
+            # get tbe diversity of the agent until the round num_round
+            for i in range(num_round):
+                for j in range(num_trials):
+                    diversity = self.get_diversity_per_agent(agent.id, j, i)
+                    diversity_per_type[agent.policy_type][j, i, diversity_logs_per_type[agent.policy_type]] = diversity
 
-        return self.distance_score
+            diversity_logs_per_type[agent.policy_type] += 1
+
+        for policy_type, diversities in diversity_per_type.items():
+            diversity_per_type[policy_type] = np.array(diversities) / agents_per_type[policy_type]
+            # mean over agents
+            diversity_per_type[policy_type] = np.mean(diversity_per_type[policy_type], axis=-1)
+            # mean over trials
+            mean = np.mean(diversity_per_type[policy_type], axis=0)
+            std = np.std(diversity_per_type[policy_type], axis=0)
+
+            diversity_per_type[policy_type] = (mean, std)
+
+        return diversity_per_type
+
 
