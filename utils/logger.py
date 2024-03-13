@@ -6,8 +6,9 @@ from utils.policy import Policy
 from rating.rating import RatingSystem
 
 class Logger():
-    def __init__(self, log_file):
+    def __init__(self, verbose: bool = False) -> None:
         os.makedirs("logs", exist_ok=True)
+        self.verbose = verbose
 
         pass
 
@@ -17,6 +18,7 @@ class Logger():
         Params:
             rating_distribution (np.array): The rating distribution.
         """
+
         os.makedirs(f"logs/rating_distribution_{rating.name}/{num_trial}", exist_ok=True)
         path = f"logs/rating_distribution_{rating.name}/{num_trial}"
         rating.plot_distribution(path=path,round= num_round)
@@ -29,6 +31,10 @@ class Logger():
             rating_mean (Dict[str, List[int]]): The mean rating per policy.
             rating_std (Dict[str, List[int]]): The std rating per policy.
         """
+        if self.verbose:
+            print("Plotting rating per policy...")
+            print(f"Best policy: {max(rating_mean, key=rating_mean.get)}")
+
 
         os.makedirs(f"logs/rating_per_policy_{rating.name}", exist_ok=True)
         path = f"logs/rating_per_policy_{rating.name}"

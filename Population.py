@@ -26,7 +26,7 @@ class Population:
         self.agents: List[Agent] = []
         self.env: AECEnv = env
         self.state_size = 84
-        self.logger = Logger("logs")
+        self.logger = Logger( verbose=True)
         self.rating = Elo()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
@@ -233,6 +233,13 @@ class Population:
                         else:
                             draws = True
                         to_update.append((winner, loser, draws))
+                        if self.logger.verbose:
+                            if draws:
+                                print(f"Draw between agent {agent_1.id} (policy {agent_1.policy_name}) and agent {agent_2.id} (policy {agent_2.policy_name})")
+                            else:
+                                print(f"Agent {winner.id} (policy {winner.policy_name}) won against agent {loser.id} (policy {loser.policy_name})")
+
+
                         #self.rating.update_ratings(winner, loser, draw=draws)
                 for agent in self.agents:
                     for policy in policy_names:
@@ -243,7 +250,7 @@ class Population:
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
                 for winner, loser, draws in to_update:
                     self.rating.update_ratings(winner, loser, draw=draws)
-                self.logger.plot_rating_distribution( num_trial=trial, num_round=self.num_rounds-1, rating=self.rating)
+                self.logger.plot_rating_distribution( num_trial=trial, num_round=round, rating=self.rating)
             self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
                                                rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)
             self.reset_population()
