@@ -36,7 +36,8 @@ class Population:
         self.num_rounds = num_rounds
         self.reset_population()
         self.diversity = Diversity(num_trials=num_trials, num_rounds=num_rounds, num_agents=len(self.agents), agents=self.agents)
-        self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents)
+        self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents, p=0.5)
+
         self.number_opponent_per_agent = num_opponnent_per_agent
 
     def get_agent_type_per_id(self, id: int) -> Policy:
@@ -209,8 +210,7 @@ class Population:
                 self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity)
 
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
-                # TODO : faire un Prioritized fictitious self-play
-                paired_agents = self.rating.find_similar_rating_pairs()
+                paired_agents = self.prioritized_fictitious_plays.get_all_pairs(self.agents, self.rating, self.number_opponent_per_agent)
                 for agent_1, agent_2 in paired_agents:
                     _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
                                                     num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
@@ -823,9 +823,9 @@ class Population:
 
 
 agent_counts = {
-    Policy.DQN: 10,
-    Policy.PPO: 10,
-    Policy.A2C: 10,
+    Policy.DQN: 2,
+    Policy.PPO: 2,
+    Policy.A2C: 2,
     Policy.Random: 1,
     Policy.Deterministic:1
 }
