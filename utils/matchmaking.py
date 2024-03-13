@@ -130,7 +130,7 @@ class Prioritized_fictitious_plays():
         opponents_list = []
         while len(opponents_list) < num_opponents:
             opponent = np.random.choice(list_of_agents, p=self.probs_matrix[agent.id, :])
-            if opponent not in opponents_list:
+            if opponent.id not in opponents_list and opponent.id != agent.id:
                 opponents_list.append(opponent.id)
 
         return opponents_list
@@ -185,4 +185,7 @@ class Prioritized_fictitious_plays():
 
         assert len(pairs_dict.keys()) == len(list_agent)  , "The number of agents is not correct"
         assert [len(pairs_dict[agent.id]) == num_opponent for agent in list_agent] , "The number of opponents is not correct"
+        # assert no duplicates in the opponents
+        for agent in list_agent:
+            assert len(pairs_dict[agent.id]) == len(set(pairs_dict[agent.id])), "Duplicates in the opponents"
         return pairs_dict

@@ -235,9 +235,9 @@ class Population:
                         to_update.append((winner, loser, draws))
                         if self.logger.verbose:
                             if draws:
-                                print(f"Draw between agent {agent_1.id} (policy {agent_1.policy_name}) and agent {agent_2.id} (policy {agent_2.policy_name})")
+                                print(f"Draw between agent {self.agents[agent_1].id} (policy {self.agents[agent_1].policy_name}) and agent {self.agents[agent_2].id} (policy {self.agents[agent_2].policy_name})")
                             else:
-                                print(f"Agent {winner.id} (policy {winner.policy_name}) won against agent {loser.id} (policy {loser.policy_name})")
+                                print(f"Agent {self.agents[winner].id} (policy {self.agents[winner].policy_name}) won against agent {self.agents[loser].id} (policy {self.agents[loser].policy_name})")
 
 
                         #self.rating.update_ratings(winner, loser, draw=draws)
