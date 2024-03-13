@@ -51,6 +51,8 @@ class Prioritized_fictitious_plays():
                     self.probs_matrix[line, col] = self.weighted_function(self.probs_matrix[line, col]) / np.sum(
                         self.weighted_function(self.probs_matrix[line, :]))
 
+        # normalize the values so that the sum of the probabilities is 1
+        self.probs_matrix[agent.id, :] = self.probs_matrix[agent.id, :] / np.sum(self.probs_matrix[agent.id, :])
 
         return self.probs_matrix[agent.id, :]
 

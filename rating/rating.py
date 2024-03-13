@@ -182,6 +182,20 @@ class Elo(RatingSystem):
         """
         return self.ratings.get(player_id, self.base_rating)
 
+    def get_probs_of_winning(self, player_id: int, opponent_id: int) -> float:
+        """
+        Get the probability of winning for a player against a list of opponents.
+
+        Parameters:
+        - player_id (int): The unique identifier for the player.
+        - opponent_id (int): The unique identifier for the opponent.
+
+        Returns:
+        - float: The probability of the player winning against the opponent.
+        """
+        player_rating = self.get_rating(player_id)
+        opponent_rating = self.get_rating(opponent_id)
+        return self._expected_result(player_rating, opponent_rating)
     def _expected_result(self, player_rating: int, opponent_rating: int) -> float:
         """
         Calculate the expected outcome of a match.
