@@ -211,25 +211,26 @@ class Population:
 
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
                 paired_agents = self.prioritized_fictitious_plays.get_all_pairs(self.agents, self.rating, self.number_opponent_per_agent)
-                for agent_1, agent_2 in paired_agents:
-                    _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
-                                                    num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
-                    agent_1_win_game_1, agent_2_win_game_1, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
-                                                                           agent_2_index=agent_2,agent_1_play_first=True)
-                    agent_1_win_game_2, agent_2_win_game_2, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
-                                                                           agent_2_index=agent_2,agent_1_play_first=False)
-                    agent_1_win = sum(agent_1_win_game_1) + sum(agent_1_win_game_2)
-                    agent_2_win = sum(agent_2_win_game_1) + sum(agent_2_win_game_2)
-                    draws = False
-                    if agent_1_win > agent_2_win:
-                        winner = agent_1
-                        loser = agent_2
-                    elif agent_1_win < agent_2_win:
-                        winner = agent_2
-                        loser = agent_1
-                    else:
-                        draws = True
-                    self.rating.update_ratings(winner, loser, draw=draws)
+                for agent_1, agent_2_list in paired_agents.items():
+                    for agent_2 in agent_2_list:
+                        _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
+                                                        num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
+                        agent_1_win_game_1, agent_2_win_game_1, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                                                                               agent_2_index=agent_2,agent_1_play_first=True)
+                        agent_1_win_game_2, agent_2_win_game_2, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                                                                               agent_2_index=agent_2,agent_1_play_first=False)
+                        agent_1_win = sum(agent_1_win_game_1) + sum(agent_1_win_game_2)
+                        agent_2_win = sum(agent_2_win_game_1) + sum(agent_2_win_game_2)
+                        draws = False
+                        if agent_1_win > agent_2_win:
+                            winner = agent_1
+                            loser = agent_2
+                        elif agent_1_win < agent_2_win:
+                            winner = agent_2
+                            loser = agent_1
+                        else:
+                            draws = True
+                        self.rating.update_ratings(winner, loser, draw=draws)
                 for agent in self.agents:
                     for policy in policy_names:
                         if agent.policy_name == policy:

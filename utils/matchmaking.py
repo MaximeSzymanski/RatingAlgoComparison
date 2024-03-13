@@ -51,8 +51,9 @@ class Prioritized_fictitious_plays():
                     self.probs_matrix[line, col] = self.weighted_function(self.probs_matrix[line, col]) / np.sum(
                         self.weighted_function(self.probs_matrix[line, :]))
 
-        # normalize the values so that the sum of the probabilities is 1
-        self.probs_matrix[agent.id, :] = self.probs_matrix[agent.id, :] / np.sum(self.probs_matrix[agent.id, :])
+        # normalize the values so that the sum of the probabilities is 1ç
+        row_sums = self.probs_matrix.sum(axis=1)
+        self.probs_matrix = self.probs_matrix / row_sums[:, np.newaxis]
 
         return self.probs_matrix[agent.id, :]
 
@@ -180,10 +181,7 @@ class Prioritized_fictitious_plays():
         self.update_probability(list_agent, rating)
         pairs_dict = { agent.id : self.get_opponents(agent, list_agent, num_opponent) for agent in list_agent}
         # Remove the pairs that are already present in the dictionary
-        for agent in list_agent:
-            for opponent in pairs_dict[agent.id]:
-                if agent.id in pairs_dict[opponent]:
-                    pairs_dict[agent.id].remove(opponent)
+
 
         assert len(pairs_dict.keys()) == len(list_agent)  , "The number of agents is not correct"
         assert [len(pairs_dict[agent.id]) == num_opponent for agent in list_agent] , "The number of opponents is not correct"
