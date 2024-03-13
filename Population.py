@@ -3,6 +3,7 @@ from pettingzoo.utils.env import AECEnv
 from utils.policy import Policy
 from utils.logger import Logger
 from rating.rating import TrueSkill, Elo
+from utils.matchmaking import Prioritized_fictitious_plays
 from  utils.diversity_action import Diversity
 from models.DQN import DQN
 from models.PPO import PPO
@@ -14,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 from pettingzoo.classic import connect_four_v3
 class Population:
-    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int) -> None:
+    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int,num_opponnent_per_agent : int) -> None:
         """
         Initialize the population of agents.
 
@@ -35,8 +36,8 @@ class Population:
         self.num_rounds = num_rounds
         self.reset_population()
         self.diversity = Diversity(num_trials=num_trials, num_rounds=num_rounds, num_agents=len(self.agents), agents=self.agents)
-
-
+        self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents)
+        self.number_opponent_per_agent = num_opponnent_per_agent
 
     def get_agent_type_per_id(self, id: int) -> Policy:
         """
@@ -648,8 +649,6 @@ class Population:
         Returns:
             Tuple of lists containing random states and masks.
         """
-
-
         states = []
         masks = []
         while len(states) < num_states:
@@ -830,7 +829,7 @@ agent_counts = {
     Policy.Random: 1,
     Policy.Deterministic:1
 }
-texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100)
+texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100, num_opponnent_per_agent=10)
 num_fights_train = 25
 num_fight_test = 1
 texas_population.training_loop(num_fights_train=num_fights_train,

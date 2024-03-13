@@ -26,6 +26,21 @@ class RatingSystem:
         """
 
         self.ratings[new_id] = self.ratings.pop(old_id)
+
+
+    def get_probs_of_winning(self, player_id: int, opponent_id: int) -> float:
+        """
+        Get the probability of winning for a player against a list of opponents.
+
+        Parameters:
+        - player_id (int): The unique identifier for the player.
+        - opponent_id (int): The unique identifier for the opponent.
+
+        Returns:
+        - float: The probability of the player winning against the opponent.
+        """
+
+        raise NotImplementedError
     def remove_player(self, player_id: int):
         """
         Remove a player from the Elo rating system.
@@ -275,6 +290,20 @@ class TrueSkill(RatingSystem):
 
 
 
+    def get_probs_of_winning(self, player_id: int, opponent_id: int) -> float:
+        """
+        Get the probability of winning for a player against a list of opponents.
+
+        Parameters:
+        - player_id (int): The unique identifier for the player.
+        - opponent_id (int): The unique identifier for the opponent.
+
+        Returns:
+        - float: The probability of the player winning against the opponent.
+        """
+        player_rating = self.get_trueskill_ratings(player_id)
+        opponent_rating = self.get_trueskill_ratings(opponent_id)
+        return self.exptect_result(player_rating, opponent_rating)
     def exptect_result(self,player1_rating : Rating, player2_rating : Rating) -> float:
         """
         Calculate the expected outcome of a match.
@@ -291,7 +320,7 @@ class TrueSkill(RatingSystem):
         return trueskill.backends.cdf(delta_mu / (2 * (sum_sigma + trueskill.BETA ** 2) ** 0.5))
 
 
-    
+
     def find_similar_rating_pairs(self) -> list:
         """
         Find pairs of agents with similar TrueSkill ratings, each having one opponent.
