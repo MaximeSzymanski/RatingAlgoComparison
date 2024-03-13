@@ -78,6 +78,9 @@ class RatingSystem:
         """
         raise NotImplementedError
 
+    def plot_distribution(self,path : str,round : int):
+
+        raise NotImplementedError
 
 class Elo(RatingSystem):
     def __init__(self, k_factor: int = 32):
@@ -136,7 +139,7 @@ class Elo(RatingSystem):
         plt.savefig(f'{path}/rating_per_policy_{num_trial}.png')
         plt.clf()
 
-    def update_ratings(self, player1_id: int, player2_id: int, draw=False):
+    def update_ratings(self, player1_id: int | None, player2_id: int | None, draw: bool = False):
         """
         Update the ratings of two players after a match.
 
@@ -269,7 +272,7 @@ class Elo(RatingSystem):
         else:
             return None  # No suitable opponent found
 
-    def plot_elo_distribution(self, round=0):
+    def plot_distribution(self, round : int,path : str ):
         """
         Plot the distribution of Elo ratings for all players.
         """
@@ -281,7 +284,7 @@ class Elo(RatingSystem):
         plt.ylabel('Frequency')
         plt.title('Elo Rating Distribution')
         # save into file
-        plt.savefig('elo_distrib/elo_distribution_round_'+str(round)+'.png')
+        plt.savefig(f"{path}/elo_distribution_{round}.png")
         plt.clf()
 
 

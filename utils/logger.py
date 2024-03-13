@@ -11,6 +11,15 @@ class Logger():
 
         pass
 
+    def plot_rating_distribution(self,  num_trial : int, num_round : int, rating : RatingSystem) -> None:
+        """
+        Plot the rating distribution.
+        Params:
+            rating_distribution (np.array): The rating distribution.
+        """
+        os.makedirs(f"logs/rating_distribution_{rating.name}/{num_trial}", exist_ok=True)
+        path = f"logs/rating_distribution_{rating.name}/{num_trial}"
+        rating.plot_distribution(path=path,round= num_round)
     def plot_rating_per_policy(self, policies: List[str], rating_mean: Dict[str, List[int]],
                                rating_std: Dict[str, List[int]],num_trial : int,rating : RatingSystem) -> None:
         """

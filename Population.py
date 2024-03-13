@@ -208,7 +208,7 @@ class Population:
 
             for round in tqdm(range(self.num_rounds)):
                 self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity)
-
+                to_update = []
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
                 paired_agents = self.prioritized_fictitious_plays.get_all_pairs(self.agents, self.rating, self.number_opponent_per_agent)
                 for agent_1, agent_2_list in paired_agents.items():
@@ -222,6 +222,8 @@ class Population:
                         agent_1_win = sum(agent_1_win_game_1) + sum(agent_1_win_game_2)
                         agent_2_win = sum(agent_2_win_game_1) + sum(agent_2_win_game_2)
                         draws = False
+                        winner = None
+                        loser = None
                         if agent_1_win > agent_2_win:
                             winner = agent_1
                             loser = agent_2
@@ -230,7 +232,8 @@ class Population:
                             loser = agent_1
                         else:
                             draws = True
-                        self.rating.update_ratings(winner, loser, draw=draws)
+                        to_update.append((winner, loser, draws))
+                        #self.rating.update_ratings(winner, loser, draw=draws)
                 for agent in self.agents:
                     for policy in policy_names:
                         if agent.policy_name == policy:
@@ -238,6 +241,9 @@ class Population:
                 for policy in policy_names:
                     rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
+                for winner, loser, draws in to_update:
+                    self.rating.update_ratings(winner, loser, draw=draws)
+                self.logger.plot_rating_distribution( num_trial=trial, num_round=self.num_rounds-1, rating=self.rating)
             self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
                                                rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)
             self.reset_population()
@@ -696,8 +702,8 @@ class Population:
         draws = np.cumsum(draws) / (np.arange(num_fights) + 1)
         return random_agent_win, opponent_win, draws
 
-    def compute_winner(self, random_agent_win: List[int], opponent_win: List[int], draws: List[int],
-                       current_episode_reward: int, current_episode_reward_opponent: int) -> None:
+    def compute_winner(self, agent_1_win: List[int], agent_2_win: List[int], draws: List[int],
+                       current_episode_reward_agent_1 : int, current_episode_reward_agent_2: int) -> None:
         """
         Computes the winner of a fight.
 
@@ -708,17 +714,17 @@ class Population:
             current_episode_reward (int): Reward obtained by the player agent.
             current_episode_reward_opponent (int): Reward obtained by the opponent agent.
         """
-        if current_episode_reward > current_episode_reward_opponent:
-            random_agent_win.append(1)
-            opponent_win.append(0)
+        if current_episode_reward_agent_1 > current_episode_reward_agent_2:
+            agent_1_win.append(1)
+            agent_2_win.append(0)
             draws.append(0)
-        elif current_episode_reward < current_episode_reward_opponent:
-            random_agent_win.append(0)
-            opponent_win.append(1)
+        elif current_episode_reward_agent_1 < current_episode_reward_agent_2:
+            agent_1_win.append(0)
+            agent_2_win.append(1)
             draws.append(0)
         else:
-            random_agent_win.append(0)
-            opponent_win.append(0)
+            agent_1_win.append(0)
+            agent_2_win.append(0)
             draws.append(1)
 
     def test_agents_against_random(self, num_tests: int = 1000, agent_id: int = 0) -> None:
