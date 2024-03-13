@@ -27,7 +27,7 @@ class Population:
         self.env: AECEnv = env
         self.state_size = 84
         self.logger = Logger( verbose=True)
-        self.rating = Elo()
+        self.rating = TrueSkill()
         self.base_rating = 1500
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = list(range(self.action_size))
@@ -110,7 +110,7 @@ class Population:
         Reset the population of agents.
         """
         self.agents = []
-        self.rating = Elo()
+        self.rating = TrueSkill()
         self.number_agents_per_algo = {policy: 0 for policy in Policy}
         self.build_population()
 
@@ -232,6 +232,8 @@ class Population:
                             loser = agent_1
                         else:
                             draws = True
+                            winner = agent_1
+                            loser = agent_2
                         to_update.append((winner, loser, draws))
                         if self.logger.verbose:
                             if draws:

@@ -378,6 +378,9 @@ class TrueSkill(RatingSystem):
         - winner_id (int): The unique identifier for the winning player.
         - loser_id (int): The unique identifier for the losing player.
         """
+        print("winner id ",winner_id)
+        print("loser_id id ",loser_id)
+
         winner_rating = self.get_trueskill_ratings(winner_id)
         loser_rating = self.get_trueskill_ratings(loser_id)
 
@@ -452,4 +455,16 @@ class TrueSkill(RatingSystem):
         plt.legend(loc='upper left')
         plt.title("Rating Over Time")
         plt.savefig(f'{path}/rating_per_policy_{num_trial}.png')
+        plt.clf()
+    def plot_distribution(self,path : str,round : int):
+        """
+        Plot the distribution of TrueSkill ratings for all players.
+        """
+        ratings = [trueskill.expose(rating) for rating in self.ratings.values()]
+        plt.hist(ratings, bins=20, edgecolor='black')
+        plt.xlabel('TrueSkill Rating')
+        plt.ylabel('Frequency')
+        plt.title('TrueSkill Rating Distribution')
+        # save into file
+        plt.savefig(f"{path}/trueskill_distribution_{round}.png")
         plt.clf()
