@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List
-from rating.rating import RatingSystem
+from poprank import Rate
+#from rating.rating import RatingSystem
 from Agent import Agent
 
 class Prioritized_fictitious_plays():
@@ -13,50 +14,15 @@ class Prioritized_fictitious_plays():
             - p : float
                 The parameter p used to calculate the probability of winning
         """
-        self.probs_matrix = np.zeros((len(list_of_agents), len(list_of_agents)))
+        #probability agent x wins agains agent y
+        self.winning_probs_matrix = np.zeros((len(list_of_agents), len(list_of_agents)))
+
+        #probability agent x plays agains agent y
+        self.matchmaking_probs_matrix = np.zeros((len(list_of_agents), len(list_of_agents)))
         self.p = p
 
-    def get_probability(self, agent : Agent, list_of_agents : List[Agent], rating_system : RatingSystem):
-        """
-        This function calculates the probability of winning for an agent against all the other agents in the list
-        of agents. The probability is calculated using the rating system and the probabilities are stored in a
-        matrix.
-
-        Parameters:
-            - agent : Agent
-                The agent for which the probability of winning is to be calculated
-            - list_of_agents : List[Agent]
-                The list of all the agents
-            - rating_system : RatingSystem
-                The rating system used to calculate the probability of winning
-
-        Returns:
-            - np.array
-                The probability of winning for the agent against all the other agents
-
-
-        """
-
-        for opponent in list_of_agents:
-            if agent != opponent:
-                # Calculate the probability of winning
-                probs = rating_system.get_probs_of_winning(agent.id, opponent.id)
-                # Update the probability of winning
-                self.probs_matrix[agent.id, opponent.id] = probs
-
-        # iterate over all the values
-        for line in range(self.probs_matrix.shape[0]):
-            for col in range(self.probs_matrix.shape[1]):
-                if line != col:
-                    self.probs_matrix[line, col] = self.weighted_function(self.probs_matrix[line, col]) / np.sum(
-                        self.weighted_function(self.probs_matrix[line, :]))
-
-        # normalize the values so that the sum of the probabilities is 1ç
-        row_sums = self.probs_matrix.sum(axis=1)
-        self.probs_matrix = self.probs_matrix / row_sums[:, np.newaxis]
-
-        return self.probs_matrix[agent.id, :]
-
+    def get_probability(self, agent : Agent):
+        return self.matchmaking_probs_matrix[agent.id, :]
 
     def weighted_function(self, prob : float):
         """
@@ -69,11 +35,11 @@ class Prioritized_fictitious_plays():
         Returns:
             - float
                 The weighted function of the probability of winning
-
         """
-        return (1 - prob) ** self.p
+        # TODO: Compare against uniform distrib
+        return (1 - prob) * prob * self.p
 
-    def update_probability(self, list_of_agents : List[Agent], rating_system : RatingSystem):
+    def update_probability(self, list_of_agents : List[Agent], ratings : "List[Rate]", rating_system : str):
         """
          This function updates the probability matrix for all the agents in the list of agents.
 
@@ -88,26 +54,20 @@ class Prioritized_fictitious_plays():
 
         """
         for agent in list_of_agents:
-            self.get_probability(agent, list_of_agents, rating_system)
+            for opponent in list_of_agents:
+                # Calculate the probability of winning
+                probs = ratings[rating_system][agent.id].predict(ratings[rating_system][opponent.id]) 
+                # Update the probability of winning
+                self.winning_probs_matrix[agent.id, opponent.id] = probs
+        
+        # iterate over all the values
+        for line in range(self.matchmaking_probs_matrix.shape[0]):
+            self.matchmaking_probs_matrix[line] = self.weighted_function(self.winning_probs_matrix[line]) / (np.sum(
+                self.weighted_function(self.winning_probs_matrix[line])) - self.weighted_function(self.winning_probs_matrix[line, line]))
+            self.matchmaking_probs_matrix[line, line] = 0
 
-    def sample_opponent_among_probs(self, agent : Agent, list_of_agents : List[Agent]):
-        """
-        This function samples an opponent for the agent from the list of agents based on the probabilities
-        calculated by the get_probability function.
-
-        Parameters:
-            - agent : Agent
-                The agent for which the opponent is to be sampled
-            - list_of_agents : List[Agent]
-                The list of all the agents
-
-        Returns:
-            - Agent
-                The sampled opponent for the agent
-
-        """
-
-        return np.random.choice(list_of_agents, p=self.probs_matrix[agent.id, :])
+    def sample_opponent(self, agent : Agent, list_of_agents : List[Agent]):
+        return np.random.choice(list_of_agents, p=self.matchmaking_probs_matrix[agent.id, :]/sum(self.matchmaking_probs_matrix[agent.id, :]))
 
     def get_opponents(self, agent : Agent, list_of_agents : List[Agent],num_opponents : int) -> List[int]:
         """
@@ -129,38 +89,13 @@ class Prioritized_fictitious_plays():
         """
         opponents_list = []
         while len(opponents_list) < num_opponents:
-            opponent = np.random.choice(list_of_agents, p=self.probs_matrix[agent.id, :])
-            if opponent.id not in opponents_list and opponent.id != agent.id:
-                opponents_list.append(opponent.id)
+            opponents_list.append(self.sample_opponent(agent, list_of_agents).id)
+            if opponents_list[-1] == agent.id:
+                raise ValueError("Something is fucked here")
 
         return opponents_list
 
-
-
-    def get_all_opponents(self,list_agent : list[Agent], rating : RatingSystem, num_opponent : int):
-
-        """
-        This function returns the list of opponents for all the agents in the list of agents. The number of opponents
-        is specified by the num_opponent parameter.
-
-        Parameters:
-            - list_agent : list[Agent]
-                The list of all the agents
-            - rating : RatingSystem
-                The rating system used to calculate the probability of winning
-            - num_opponent : int
-                The number of opponents to be sampled
-
-        Returns:
-            - list[list[Agent]]
-                The list of opponents for all the agents in the list of agents
-        """
-
-        self.update_probability(list_agent, rating)
-        opponent_dict = { agent.id : self.get_opponents(agent, list_agent, num_opponent) for agent in list_agent}
-        return opponent_dict
-
-    def get_all_pairs(self,list_agent : list[Agent], rating : RatingSystem, num_opponent : int):
+    def get_all_opponents(self,list_agent : list[Agent], ratings : "List[Rate]", rating_system : str, num_opponent : int):
         """
         This function returns all the pairs of opponents for all the agents in the list of agents (without repetition).
         The number of opponents is specified by the num_opponent parameter.
@@ -178,14 +113,9 @@ class Prioritized_fictitious_plays():
                 The list of opponents for all the agents in the list of agents
         """
 
-        self.update_probability(list_agent, rating)
+        self.update_probability(list_agent, ratings, rating_system)
         pairs_dict = { agent.id : self.get_opponents(agent, list_agent, num_opponent) for agent in list_agent}
-        # Remove the pairs that are already present in the dictionary
-
 
         assert len(pairs_dict.keys()) == len(list_agent)  , "The number of agents is not correct"
         assert [len(pairs_dict[agent.id]) == num_opponent for agent in list_agent] , "The number of opponents is not correct"
-        # assert no duplicates in the opponents
-        for agent in list_agent:
-            assert len(pairs_dict[agent.id]) == len(set(pairs_dict[agent.id])), "Duplicates in the opponents"
         return pairs_dict

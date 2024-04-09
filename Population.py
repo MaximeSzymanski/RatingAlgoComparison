@@ -2,7 +2,7 @@ from typing import List, Dict
 from pettingzoo.utils.env import AECEnv
 from utils.policy import Policy
 from utils.logger import Logger
-from rating.rating import TrueSkill, Elo
+#from rating.rating import TrueSkill, Elo
 from utils.matchmaking import Prioritized_fictitious_plays
 from  utils.diversity_action import Diversity
 from models.DQN import DQN
@@ -14,8 +14,19 @@ from Agent import Agent
 import numpy as np
 from tqdm import tqdm
 from pettingzoo.classic import connect_four_v3
+from popcore import Interaction
+
+from poprank.functional.rates.elo import EloRate, elo
+from poprank.functional.rates.glicko import GlickoRate, Glicko2Rate, glicko, glicko2
+from poprank.functional.rates.trueskill import TrueSkillRate, trueskill
+from poprank.functional.rates.melo import MultidimEloRate, multidim_elo
+from poprank.functional.rates.bayeselo import bayeselo
+
+rate_dict = {"elo" : EloRate, "bayeselo" : EloRate, "glicko" : GlickoRate, "glicko2" : Glicko2Rate, "trueskill" : TrueSkillRate, "melo" : MultidimEloRate}
+update_dict = {"elo" : elo, "bayeselo" : bayeselo, "glicko" : glicko, "glicko2" : glicko2, "trueskill" : trueskill, "melo" : multidim_elo}
+
 class Population:
-    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int,num_opponnent_per_agent : int) -> None:
+    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int,num_opponnent_per_agent : int, rating_system : str, rating_systems : "List[str]") -> None:
         """
         Initialize the population of agents.
 
@@ -24,11 +35,12 @@ class Population:
         - agent_counts (Dict[Policy, int]): A dictionary containing the count of each agent type.
         """
         self.agents: List[Agent] = []
+        self.ratings = {s : [] for s in rating_systems}
+        self.rating_systems = rating_systems
+        self.rating_system = rating_system
         self.env: AECEnv = env
         self.state_size = 84
-        self.logger = Logger( verbose=True)
-        self.rating = TrueSkill()
-        self.base_rating = 1500
+        self.logger = Logger(verbose=True)
         self.action_size = env.action_space("player_1").n
         self.deterministic_action = list(range(self.action_size))
         self.agent_counts = agent_counts
@@ -36,7 +48,7 @@ class Population:
         self.num_rounds = num_rounds
         self.reset_population()
         self.diversity = Diversity(num_trials=num_trials, num_rounds=num_rounds, num_agents=len(self.agents), agents=self.agents)
-        self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents, p=0.5)
+        self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents, p=1)
 
         self.number_opponent_per_agent = num_opponnent_per_agent
 
@@ -82,18 +94,25 @@ class Population:
                 id = self.get_id_new_agent()
                 self.agents.append(Agent(policy_type, self.state_size, self.action_size, id=id,
                                          action_deterministic=action, agent_index=self.number_agents_per_algo[policy_type]))
-                self.rating.add_player(id)
+                for r in self.rating_systems:
+                    self.ratings[r].append(rate_dict[r]())
+
         else:
             id = self.get_id_new_agent()
             self.agents.append(Agent(policy_type, self.state_size, self.action_size,
                                      id=id, agent_index=self.number_agents_per_algo[policy_type]))
-            self.rating.add_player(id)
+            for r in self.rating_systems:
+                self.ratings[r].append(rate_dict[r]())
             self.number_agents_per_algo[policy_type] += 1
         self.agents.sort(key=self.policy_sort)
+
         # reassing the id of the agents based on the new order
+        permutation = [agent.id for agent in self.agents]
+        for r in self.rating_systems:
+            self.ratings[r] = np.array(self.ratings[r])[permutation].tolist()
+
         for i, agent in enumerate(self.agents):
             agent.id = i
-            self.rating.update_id(new_id=i, old_id=agent.id)
 
 
     def build_population(self) -> None:
@@ -110,7 +129,7 @@ class Population:
         Reset the population of agents.
         """
         self.agents = []
-        self.rating = TrueSkill()
+        self.ratings = {s : [] for s in self.rating_systems}
         self.number_agents_per_algo = {policy: 0 for policy in Policy}
         self.build_population()
 
@@ -163,7 +182,8 @@ class Population:
         Parameters:
         - agent (Agent): The agent to remove.
         """
-        self.rating.remove_player(agent.id)
+        for s in self.rating_systems:
+            self.ratings[s].pop(agent.id)
         self.agents.remove(agent)
 
     def update_diversity_matrix(self, num_trial: int, num_round: int,num_states_diversity : int) -> None:
@@ -181,13 +201,13 @@ class Population:
         self.diversity.build_diversity_matrix_round(num_trial=num_trial, num_round=num_round)
         if num_round > 1:
             self.logger.log_diversity_matrix(diversity_matrix=self.diversity.get_diversity_matrix(num_trial=num_trial, num_round=num_round),
-                                                num_trial=num_trial, num_round=num_round, agents=self.agents)
+                                                num_trial=num_trial, num_round=num_round, agents=self.agents, experiment=f"using_{self.rating_system}_for_matchmaking")
             self.logger.log_diversity_per_policy_trial_until_round(diversity_per_agent=self.diversity.get_diversity_per_type_of_policy_until_round_specific_trial(num_round=num_round,num_trial=num_trial),
-                                                                    num_trial=num_trial, num_round=num_round)
+                                                                    num_trial=num_trial, num_round=num_round, experiment=f"using_{self.rating_system}_for_matchmaking")
 
 
 
-    def training_loop(self,  num_fights_train=10,use_rating_in_reward=False,num_states_diversity : int  = 1000) -> None:
+    def training_loop(self, num_fights_train=10, use_rating_in_reward=False, num_states_diversity : int = 25) -> None:
         """
         The training loop for the population.
 
@@ -207,20 +227,22 @@ class Population:
             rating_per_policy_std = {policy: [] for policy in policy_names}
 
             for round in tqdm(range(self.num_rounds)):
-                self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity)
-                to_update = []
+                self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity) # That's expensive and slow
+                interactions = []
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
-                paired_agents = self.prioritized_fictitious_plays.get_all_pairs(self.agents, self.rating, self.number_opponent_per_agent)
+                paired_agents = self.prioritized_fictitious_plays.get_all_opponents(self.agents, self.ratings, self.rating_system, self.number_opponent_per_agent)
                 for agent_1, agent_2_list in paired_agents.items():
                     for agent_2 in agent_2_list:
-                        _, _, _ = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
+                        a1w, a2w, _, interac = self.train_fight_1vs1(agent_1_index=agent_1, agent_2_index=agent_2,
                                                         num_fights=num_fights_train, use_rating_in_reward=use_rating_in_reward)
-                        agent_1_win_game_1, agent_2_win_game_1, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
+                        """agent_1_win_game_1, agent_2_win_game_1, _, interactions1 = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_1,
                                                                                agent_2_index=agent_2)
-                        agent_2_win_game_2, agent_1_win_game_2, _ = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_2,
-                                                                               agent_2_index=agent_1)
-                        agent_1_win = sum(agent_1_win_game_1) + sum(agent_1_win_game_2)
-                        agent_2_win = sum(agent_2_win_game_1) + sum(agent_2_win_game_2)
+                        agent_2_win_game_2, agent_1_win_game_2, _, interactions2 = self.test_fight_1vs1(num_fights=1, agent_1_index=agent_2,
+                                                                               agent_2_index=agent_1)"""
+                        agent_1_win = sum(a1w)
+                        agent_2_win = sum(a2w)
+                        interactions.extend(interac)
+                        
                         draws = False
                         winner = None
                         loser = None
@@ -234,7 +256,7 @@ class Population:
                             draws = True
                             winner = agent_1
                             loser = agent_2
-                        to_update.append((winner, loser, draws))
+                        
                         if self.logger.verbose:
                             if draws:
                                 print(f"Draw between agent {self.agents[agent_1].id} (policy {self.agents[agent_1].policy_name}) and agent {self.agents[agent_2].id} (policy {self.agents[agent_2].policy_name})")
@@ -243,20 +265,27 @@ class Population:
 
 
                         #self.rating.update_ratings(winner, loser, draw=draws)
-                for agent in self.agents:
+                """for agent in self.agents:
                     for policy in policy_names:
                         if agent.policy_name == policy:
                             rating_per_policy_mean_round[policy].append(self.rating.get_rating(agent.id, to_plot=False))
                 for policy in policy_names:
                     rating_per_policy_mean[policy].append((rating_per_policy_mean_round[policy]))
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
-                for winner, loser, draws in to_update:
-                    self.rating.update_ratings(winner, loser, draw=draws)
-                self.logger.plot_rating_distribution( num_trial=trial, num_round=round, rating=self.rating)
-            self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
-                                               rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)
+                """
+
+                # TODO: BayesElo may be broken
+                for s in self.rating_systems:
+                    players = [i for i, _ in enumerate(self.agents)]
+                    self.ratings[s] = update_dict[s](players, interactions, self.ratings[s])
+
+                    self.logger.plot_rating_distribution(num_trial=trial, num_round=round, ratings=self.ratings[s], rating_name=s, experiment=f"using_{self.rating_system}_for_matchmaking")
+
+            """self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
+                                               rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)"""
             self.reset_population()
-        self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1))
+        self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1), experiment=f"using_{self.rating_system}_for_matchmaking")
+    
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> tuple[
         List[int], List[int], List[int]]:
         """
@@ -289,6 +318,9 @@ class Population:
         past_done_agent_2 = None
         reward_rating_factor_agent_1 = 1
         reward_rating_factor_agent_2 = 1
+
+        interactions = []
+
         if use_rating_in_reward:
             rating_diff = self.rating.get_rating(agent_1.id) - self.rating.get_rating(agent_2.id)
             rating_factor = 1 / (np.exp(-abs(rating_diff) / 400))
@@ -408,6 +440,10 @@ class Population:
                     agent_1.policy.update_epsilon()
             self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1,
                                 current_episode_reward_agent_2)
+
+            result = [agent_1_win[0], agent_2_win[0]] if not draws[0] else [0.5, 0.5]
+            interactions.append(Interaction([agent_1_index, agent_2_index], result))
+
             agent_1.policy.writer.add_scalar(
                 "Reward", current_episode_reward_agent_1, agent_1.num_fights)
             agent_2.policy.writer.add_scalar(
@@ -416,7 +452,7 @@ class Population:
             agent_2.num_fights += 1
             self.env.close()
         agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(num_fights, agent_1_win, agent_2_win, draws)
-        return agent_1_win, agent_2_win, draws
+        return agent_1_win, agent_2_win, draws, interactions
 
     def test_fight_1vs1(self, num_fights: int = 2000, agent_1_index: int = 0, agent_2_index: int = 1) -> tuple[
         List[int], List[int], List[int]]:
@@ -432,6 +468,7 @@ class Population:
             Tuple containing lists of wins for each agent and draws.
         """
         # get a random agent
+        # TODO: random opening ?
 
         agent_1: Agent = self.agents[agent_1_index]
         agent_2: Agent = self.agents[agent_2_index]
@@ -455,6 +492,8 @@ class Population:
         past_value_agent_2 = None
         past_log_prob_agent_2 = None
         past_done_agent_2 = None
+
+        interactions = []
 
         for fight in range(num_fights):
             # our agent is player 1 and the random bot is player 2
@@ -536,7 +575,8 @@ class Population:
 
             self.compute_winner(agent_1_win, agent_2_win, draws, current_episode_reward_agent_1,
                                 current_episode_reward_agent_2)
-
+            result = [agent_1_win[0], agent_2_win[0]] if not draws[0] else [0.5, 0.5]
+            interactions.append(Interaction([agent_1_index, agent_2_index], result))
 
             self.env.close()
 
@@ -544,7 +584,7 @@ class Population:
         agent_1_win, agent_2_win, draws = self.compute_winrate_over_time(
             num_fights, agent_1_win, agent_2_win, draws)
 
-        return agent_1_win, agent_2_win, draws
+        return agent_1_win, agent_2_win, draws, interactions
 
     def fight_agent_against_random(self, num_fights: int = 2000, agent_id: int = 0) -> None:
         """
@@ -722,10 +762,12 @@ class Population:
             agent_1_win.append(1)
             agent_2_win.append(0)
             draws.append(0)
+            
         elif current_episode_reward_agent_1 < current_episode_reward_agent_2:
             agent_1_win.append(0)
             agent_2_win.append(1)
             draws.append(0)
+            
         else:
             agent_1_win.append(0)
             agent_2_win.append(0)
@@ -832,17 +874,25 @@ class Population:
         return action_list
 
 
-
-agent_counts = {
+"""agent_counts = {
     Policy.DQN: 2,
     Policy.PPO: 2,
     Policy.A2C: 2,
     Policy.Random: 1,
     Policy.Deterministic:1
-}
-texas_population = Population(connect_four_v3.env(),agent_counts, num_trials=5, num_rounds=100, num_opponnent_per_agent=10)
-num_fights_train = 25
-num_fight_test = 1
-texas_population.training_loop(num_fights_train=num_fights_train,
-                             use_rating_in_reward=False)
+}"""
+
+if __name__ == "__main__":
+    agent_counts = {
+        Policy.DQN: 3,
+        Policy.PPO: 0,
+        Policy.A2C: 0,
+        Policy.Random: 0,
+        Policy.Deterministic:0
+    }
+    texas_population = Population(connect_four_v3.env(), agent_counts, num_trials=5, num_rounds=10, num_opponnent_per_agent=1)
+    num_fights_train = 5
+    num_fight_test = 1
+    texas_population.training_loop(num_fights_train=num_fights_train,
+                                use_rating_in_reward=False)
 

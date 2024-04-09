@@ -87,3 +87,7 @@ tzdata==2024.1
 urllib3==2.2.1
 Werkzeug==3.0.1
 zipp==3.17.0
+nashpy==0.0.41
+more_itertools==10.2.0
+git+https://github.com/poprl/popcore.git
+git+https://github.com/poprl/poprank.git
