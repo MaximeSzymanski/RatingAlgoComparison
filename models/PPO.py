@@ -185,12 +185,14 @@ class PPO(nn.Module):
         for param_group in optimizer.param_groups:
             param_group['lr'] *= decay_rate
 
-    def save_model(self, path='ppo.pth'):
-        torch.save(self.state_dict(), path)
+    def save(self, path, round_):
+        os.makedirs(path, exist_ok=True)
+        torch.save({"actor": self.actor.state_dict(), "critic" : self.critic.state_dict()}, path + f"/model{round_}.pth")
 
     def load_model(self, path='ppo.pth'):
-        self.load_state_dict(torch.load(
-            path, map_location=torch.device('cpu')))
+        checkpoint = torch.load(path)
+        self.actor.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["actor"])
 
     def compute_advantages(self, gamma=0.99, lamda=0.95):
 

@@ -5,19 +5,18 @@ from pettingzoo.classic import connect_four_v3
 
 import datetime
 
-print("imports ok")
 # Hyperparameters
 
 n_trials = 1
-n_rounds = 10
-n_opponents_per_agent = 40
+n_rounds = 40
+n_opponents_per_agent = 20 #40
 num_fights_train = 1 # that's the number of fight against *each* opponent in training
 num_fight_test = 0
-n_agents = 15
+n_agents = 15 #15
 
 # Rating systems we will use
 
-rating_systems = ["elo", "bayeselo", "glicko", "glicko2", "trueskill", "melo"]
+rating_systems = ["elo", "bayeselo", "glicko", "glicko2", "trueskill", "melo", "uniform"]
 
 def train_population(rating_system):
     print(rating_system)
@@ -29,7 +28,32 @@ def train_population(rating_system):
         Policy.Random: 0,
         Policy.Deterministic:0
     }
-    texas_population = Population(connect_four_v3.env(), agent_counts, num_trials=n_trials, num_rounds=n_rounds, num_opponnent_per_agent=n_opponents_per_agent, rating_system=rating_system, rating_systems=rating_systems)
+    exp_name = f"DQN/using_{rating_system}_for_matchmaking" # CHANGE THIS IF NOT USING DQN
+    texas_population = Population(connect_four_v3.env(), agent_counts, num_trials=n_trials, num_rounds=n_rounds, num_opponnent_per_agent=n_opponents_per_agent, rating_system=rating_system, rating_systems=rating_systems, experiment_name=exp_name)
+    texas_population.training_loop(num_fights_train=num_fights_train, use_rating_in_reward=False)
+
+    # train PPO
+    agent_counts = {
+        Policy.DQN: 0,
+        Policy.PPO: n_agents,
+        Policy.A2C: 0,
+        Policy.Random: 0,
+        Policy.Deterministic:0
+    }
+    exp_name = f"PPO/using_{rating_system}_for_matchmaking" # CHANGE THIS IF NOT USING DQN
+    texas_population = Population(connect_four_v3.env(), agent_counts, num_trials=n_trials, num_rounds=n_rounds, num_opponnent_per_agent=n_opponents_per_agent, rating_system=rating_system, rating_systems=rating_systems, experiment_name=exp_name)
+    texas_population.training_loop(num_fights_train=num_fights_train, use_rating_in_reward=False)
+
+    # train A2C
+    agent_counts = {
+        Policy.DQN: 0,
+        Policy.PPO: 0,
+        Policy.A2C: n_agents,
+        Policy.Random: 0,
+        Policy.Deterministic:0
+    }
+    exp_name = f"A2C/using_{rating_system}_for_matchmaking" # CHANGE THIS IF NOT USING DQN
+    texas_population = Population(connect_four_v3.env(), agent_counts, num_trials=n_trials, num_rounds=n_rounds, num_opponnent_per_agent=n_opponents_per_agent, rating_system=rating_system, rating_systems=rating_systems, experiment_name=exp_name)
     texas_population.training_loop(num_fights_train=num_fights_train, use_rating_in_reward=False)
 
 if __name__ == '__main__':
@@ -46,10 +70,5 @@ if __name__ == '__main__':
     print(f"Total experiment duration : {datetime.datetime.now() - start}")
 
 
-    # train PPO
-
-    # train A2C
-
-# TODO: Track all ratings every time, we'll sort out the data once we have it
 # TODO: Train every type of model using every type of rating
 # TODO: Big final tournaments to find out who wins at the end (+ RPP estimation)

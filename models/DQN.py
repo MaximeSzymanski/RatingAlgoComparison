@@ -167,8 +167,9 @@ class DQN(nn.Module):
         self.epsilon_update += 1
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
-    def save(self, path='model.pth'):
-        torch.save(self.network.state_dict(), path)
+    def save(self, path, round_):
+        os.makedirs(path, exist_ok=True)
+        torch.save(self.network.state_dict(), path + f"/model{round_}.pth")
 
     def load(self, path='model.pth'):
         self.network.load_state_dict(torch.load(path))

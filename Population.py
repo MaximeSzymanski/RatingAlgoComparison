@@ -15,6 +15,7 @@ import numpy as np
 from tqdm import tqdm
 from pettingzoo.classic import connect_four_v3
 from popcore import Interaction
+import json
 
 from poprank.functional.rates.elo import EloRate, elo
 from poprank.functional.rates.glicko import GlickoRate, Glicko2Rate, glicko, glicko2
@@ -22,11 +23,11 @@ from poprank.functional.rates.trueskill import TrueSkillRate, trueskill
 from poprank.functional.rates.melo import MultidimEloRate, multidim_elo
 from poprank.functional.rates.bayeselo import bayeselo
 
-rate_dict = {"elo" : EloRate, "bayeselo" : EloRate, "glicko" : GlickoRate, "glicko2" : Glicko2Rate, "trueskill" : TrueSkillRate, "melo" : MultidimEloRate}
-update_dict = {"elo" : elo, "bayeselo" : bayeselo, "glicko" : glicko, "glicko2" : glicko2, "trueskill" : trueskill, "melo" : multidim_elo}
+rate_dict = {"elo" : EloRate, "bayeselo" : EloRate, "glicko" : GlickoRate, "glicko2" : Glicko2Rate, "trueskill" : TrueSkillRate, "melo" : MultidimEloRate, "uniform": EloRate}
+update_dict = {"elo" : elo, "bayeselo" : bayeselo, "glicko" : glicko, "glicko2" : glicko2, "trueskill" : trueskill, "melo" : multidim_elo, "uniform": lambda x, y, z: z}
 
 class Population:
-    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int,num_opponnent_per_agent : int, rating_system : str, rating_systems : "List[str]") -> None:
+    def __init__(self, env: AECEnv, agent_counts : Dict[Policy, int],num_trials : int , num_rounds : int,num_opponnent_per_agent : int, rating_system : str, rating_systems : "List[str]", experiment_name : str) -> None:
         """
         Initialize the population of agents.
 
@@ -49,6 +50,7 @@ class Population:
         self.reset_population()
         self.diversity = Diversity(num_trials=num_trials, num_rounds=num_rounds, num_agents=len(self.agents), agents=self.agents)
         self.prioritized_fictitious_plays = Prioritized_fictitious_plays(list_of_agents=self.agents, p=1)
+        self.experiment_name = experiment_name
 
         self.number_opponent_per_agent = num_opponnent_per_agent
 
@@ -95,7 +97,10 @@ class Population:
                 self.agents.append(Agent(policy_type, self.state_size, self.action_size, id=id,
                                          action_deterministic=action, agent_index=self.number_agents_per_algo[policy_type]))
                 for r in self.rating_systems:
-                    self.ratings[r].append(rate_dict[r]())
+                    if r == "melo":
+                        self.ratings[r].append(rate_dict[r](k=2))
+                    else:
+                        self.ratings[r].append(rate_dict[r]())
 
         else:
             id = self.get_id_new_agent()
@@ -201,9 +206,9 @@ class Population:
         self.diversity.build_diversity_matrix_round(num_trial=num_trial, num_round=num_round)
         if num_round > 1:
             self.logger.log_diversity_matrix(diversity_matrix=self.diversity.get_diversity_matrix(num_trial=num_trial, num_round=num_round),
-                                                num_trial=num_trial, num_round=num_round, agents=self.agents, experiment=f"using_{self.rating_system}_for_matchmaking")
+                                                num_trial=num_trial, num_round=num_round, agents=self.agents, experiment=self.experiment_name)
             self.logger.log_diversity_per_policy_trial_until_round(diversity_per_agent=self.diversity.get_diversity_per_type_of_policy_until_round_specific_trial(num_round=num_round,num_trial=num_trial),
-                                                                    num_trial=num_trial, num_round=num_round, experiment=f"using_{self.rating_system}_for_matchmaking")
+                                                                    num_trial=num_trial, num_round=num_round, experiment=self.experiment_name)
 
 
 
@@ -223,11 +228,19 @@ class Population:
 
         policy_names = set([agent.policy_name for agent in self.agents])
         for trial in range(self.num_trials):
+
+            json_data = {"ratings": {s : [] for s in self.rating_systems},
+                         "interactions": [],
+                         "diversity": []}
+
+            all_interactions_ever_for_bayeselo = []
             rating_per_policy_mean = {policy: [] for policy in policy_names}
             rating_per_policy_std = {policy: [] for policy in policy_names}
 
-            for round in tqdm(range(self.num_rounds)):
-                self.update_diversity_matrix(num_round=round,num_trial= trial,num_states_diversity=num_states_diversity) # That's expensive and slow
+            for round_ in tqdm(range(self.num_rounds)):
+                json_data["interactions"].append([])
+                self.update_diversity_matrix(num_round=round_,num_trial= trial,num_states_diversity=num_states_diversity) # That's expensive and slow
+                json_data["diversity"] = self.diversity.diversity_matrix.tolist()
                 interactions = []
                 rating_per_policy_mean_round = {policy: [] for policy in policy_names}
                 paired_agents = self.prioritized_fictitious_plays.get_all_opponents(self.agents, self.ratings, self.rating_system, self.number_opponent_per_agent)
@@ -242,6 +255,12 @@ class Population:
                         agent_1_win = sum(a1w)
                         agent_2_win = sum(a2w)
                         interactions.extend(interac)
+                        for i in interac:
+                            json_data["interactions"][-1].append(
+                                {"p0": i.players[0],
+                                "p1": i.players[1],
+                                "score0": i.outcomes[0],
+                                "score1": i.outcomes[1]})
                         
                         draws = False
                         winner = None
@@ -274,17 +293,34 @@ class Population:
                     rating_per_policy_std[policy].append((rating_per_policy_mean_round[policy]))
                 """
 
-                # TODO: BayesElo may be broken
+                all_interactions_ever_for_bayeselo.extend(interactions)
                 for s in self.rating_systems:
                     players = [i for i, _ in enumerate(self.agents)]
-                    self.ratings[s] = update_dict[s](players, interactions, self.ratings[s])
+                    if s == "bayeselo":
+                        self.ratings[s] = update_dict[s](players, all_interactions_ever_for_bayeselo, self.ratings[s])
+                    elif s == "melo":
+                        self.ratings[s] = update_dict[s](players, interactions, self.ratings[s], lr1=0.0001, lr2=0.01)
+                    else:
+                        self.ratings[s] = update_dict[s](players, interactions, self.ratings[s])
+                    json_data["ratings"][s].append([float(r.mu) for r in self.ratings[s]])
 
-                    self.logger.plot_rating_distribution(num_trial=trial, num_round=round, ratings=self.ratings[s], rating_name=s, experiment=f"using_{self.rating_system}_for_matchmaking")
+                    self.logger.plot_rating_distribution(num_trial=trial, num_round=round_, ratings=self.ratings[s], rating_name=s, experiment=self.experiment_name)
+                    self.logger.plot_agents_rating_over_time(ratings_over_time=json_data["ratings"][s], rating_name=s, experiment=self.experiment_name)
+                
+                for agent in self.agents:
+                    agent.policy.save("saved_models/" + self.experiment_name, round_)
+                    """try:
+                        agent.save("saved_models/" + self.experiment_name + f"/{round_}")
+                    except:
+                        pass"""
+                
+                with open("logs/" + self.experiment_name + "/data.json", "w") as f:
+                    f.write(json.dumps(json_data))
 
             """self.logger.plot_rating_per_policy(policies=policy_names, rating_mean=rating_per_policy_mean,
                                                rating_std=rating_per_policy_std, num_trial=trial, rating=self.rating)"""
             self.reset_population()
-        self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1), experiment=f"using_{self.rating_system}_for_matchmaking")
+        self.logger.log_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=self.diversity.get_diversity_per_type_of_policy_all_trial(num_round=self.num_rounds-1, num_trials=self.num_trials-1), experiment=self.experiment_name)
     
     def train_fight_1vs1(self, num_fights: int = 1000, agent_1_index: int = 0, agent_2_index: int = 1, use_rating_in_reward=False) -> tuple[
         List[int], List[int], List[int]]:

@@ -76,3 +76,24 @@ class Logger():
         os.makedirs(f"logs/{experiment}/diversity_per_type", exist_ok=True)
         path = f"logs/{experiment}/diversity_per_policy"
         plot_diversity_per_type_of_policy_averaged_over_trials(diversity_per_type=diversity_per_type, path=path)
+    
+    def plot_agents_rating_over_time(self, ratings_over_time, rating_name: str, experiment: str):
+        ratings_over_time = np.array(ratings_over_time)
+        n_timesteps, n_agents = ratings_over_time.shape
+        time_steps = np.arange(n_timesteps)
+        
+        #plt.figure(figsize=(10, 6))  # Adjust figure size as needed
+        os.makedirs(f"logs/{experiment}/rating_over_time", exist_ok=True)
+        path = f"logs/{experiment}/rating_over_time/{rating_name}_over_time.png"
+        
+        for agent_idx in range(n_agents):
+            plt.plot(time_steps, ratings_over_time[:, agent_idx], label=f"Agent {agent_idx+1}")
+
+        plt.title('Agent Ratings Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Rating')
+        plt.legend()
+        plt.grid(True)
+        
+        plt.savefig(path)
+        plt.clf()

@@ -36,7 +36,6 @@ class Prioritized_fictitious_plays():
             - float
                 The weighted function of the probability of winning
         """
-        # TODO: Compare against uniform distrib
         return (1 - prob) * prob * self.p
 
     def update_probability(self, list_of_agents : List[Agent], ratings : "List[Rate]", rating_system : str):
