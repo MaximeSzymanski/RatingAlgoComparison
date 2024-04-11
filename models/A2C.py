@@ -132,6 +132,7 @@ class A2C(nn.Module):
                                                        action_size=action_size, horizon=num_steps)
 
         self.ortogonal_initialization()
+        self.policy_type = "A2C"
 
     def ortogonal_initialization(self):
 
@@ -184,7 +185,9 @@ class A2C(nn.Module):
     def load_model(self, path='a2c.pth'):
         checkpoint = torch.load(path)
         self.actor.load_state_dict(checkpoint["actor"])
-        self.critic.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["critic"])
+        self.actor.eval()
+        self.critic.eval()
 
     def compute_advantages(self, gamma=0.99, lamda=1):
 

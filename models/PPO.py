@@ -130,6 +130,7 @@ class PPO(nn.Module):
         self.num_steps = num_steps
         self.batch_size = batch_size
         self.ortogonal_initialization()
+        self.policy_type = "PPO"
 
     def ortogonal_initialization(self):
 
@@ -192,7 +193,9 @@ class PPO(nn.Module):
     def load_model(self, path='ppo.pth'):
         checkpoint = torch.load(path)
         self.actor.load_state_dict(checkpoint["actor"])
-        self.critic.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["critic"])
+        self.actor.eval()
+        self.critic.eval()
 
     def compute_advantages(self, gamma=0.99, lamda=0.95):
 

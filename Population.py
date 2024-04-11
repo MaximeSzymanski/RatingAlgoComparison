@@ -307,8 +307,8 @@ class Population:
                     self.logger.plot_rating_distribution(num_trial=trial, num_round=round_, ratings=self.ratings[s], rating_name=s, experiment=self.experiment_name)
                     self.logger.plot_agents_rating_over_time(ratings_over_time=json_data["ratings"][s], rating_name=s, experiment=self.experiment_name)
                 
-                for agent in self.agents:
-                    agent.policy.save("saved_models/" + self.experiment_name, round_)
+                for i, agent in enumerate(self.agents):
+                    agent.policy.save("saved_models/" + self.experiment_name, i)
                     """try:
                         agent.save("saved_models/" + self.experiment_name + f"/{round_}")
                     except:

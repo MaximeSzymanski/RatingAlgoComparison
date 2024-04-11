@@ -36,7 +36,7 @@ class Prioritized_fictitious_plays():
             - float
                 The weighted function of the probability of winning
         """
-        return (1 - prob) * prob * self.p
+        return (1 - prob) * prob * self.p + 0.01 # for numerical stability
 
     def update_probability(self, list_of_agents : List[Agent], ratings : "List[Rate]", rating_system : str):
         """

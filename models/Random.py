@@ -15,6 +15,7 @@ class Random():
         self.seed = seed
         self.experience_replay = self.ExperienceReplay(0, 0, 0, 0)
         self.writer = SummaryWriter(log_dir="Random")
+        self.policy_type = "Random"
 
     def act(self, state, mask, deterministic=False):
         random_action = np.random.choice(

@@ -83,6 +83,7 @@ class DQN(nn.Module):
         ).to(self.device)
         self.optimizer = optim.Adam(self.network.parameters(), lr=lr)
         self.loss = nn.MSELoss()
+        self.policy_type = "DQN"
 
     def forward(self, x):
         if len(x.shape) == 3:
@@ -169,11 +170,14 @@ class DQN(nn.Module):
 
     def save(self, path, round_):
         os.makedirs(path, exist_ok=True)
-        torch.save(self.network.state_dict(), path + f"/model{round_}.pth")
+        torch.save({"network": self.network.state_dict(), "target_network" : self.target_network.state_dict()}, path + f"/model{round_}.pth")
 
-    def load(self, path='model.pth'):
-        self.network.load_state_dict(torch.load(path))
-        self.target_network.load_state_dict(torch.load(path))
+    def load_model(self, path='dqn.pth'):
+        checkpoint = torch.load(path)
+        self.network.load_state_dict(checkpoint["network"])
+        self.target_network.load_state_dict(checkpoint["target_network"])
+        self.network.eval()
+        self.target_network.eval()
 
     def get_action_distribution(self, state, mask):
         """

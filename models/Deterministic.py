@@ -16,6 +16,7 @@ class Deterministic():
         self.action_index = action_index
         self.experience_replay = self.ExperienceReplay(0, 0, 0, 0)
         self.writer = SummaryWriter(log_dir="Random")
+        self.policy_type = "Deterministic"
 
 
     def get_action_distribution(self, state, mask):
