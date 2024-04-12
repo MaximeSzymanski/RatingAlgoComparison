@@ -217,7 +217,7 @@ def partial_tournament(path, subpath):
     return interactions
 
 def main():
-    main_path = "fucked_up_data/saved_models"
+    main_path = "saved_models"
     subpaths = os.listdir(main_path)
 
     #results = [partial_tournament(main_path, subpath) for subpath in subpaths]

@@ -60,13 +60,6 @@ if __name__ == '__main__':
     start = datetime.datetime.now()
     processes = []
     rating_systems = ["elo", "bayeselo", "glicko", "glicko2", "trueskill", "melo", "uniform"]
-    for rating_system in rating_systems:
-        process = multiprocessing.Process(target=train_populationA2C, args=(rating_system,rating_systems))
-        processes.append(process)
-        process.start()
-
-    for process in processes:
-        process.join()
     
     for rating_system in rating_systems:
         process = multiprocessing.Process(target=train_populationPPO, args=(rating_system,rating_systems))
@@ -78,6 +71,14 @@ if __name__ == '__main__':
 
     for rating_system in rating_systems:
         process = multiprocessing.Process(target=train_populationDQN, args=(rating_system,rating_systems))
+        processes.append(process)
+        process.start()
+
+    for process in processes:
+        process.join()
+    
+    for rating_system in rating_systems:
+        process = multiprocessing.Process(target=train_populationA2C, args=(rating_system,rating_systems))
         processes.append(process)
         process.start()
 
