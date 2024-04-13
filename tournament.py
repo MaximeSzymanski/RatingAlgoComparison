@@ -148,14 +148,13 @@ def test_fight_1vs1(env, agent_1, agent_2, num_fights, agent_1_index: int = 0, a
 
     return interactions
 
-agents_ids = {}
-
-def load_population(path, type, state_size, action_size):
+def load_population(path, type, state_size, action_size, agents_ids):
     agents = []
     if type == "A2C":
         for agent_file in os.listdir(path):
             agent_name = os.path.join(path, agent_file)
             if agent_name not in agents_ids:
+                raise ValueError
                 agents_ids[agent_name] = len(agents_ids)
             id = agents_ids[agent_name]
             agent = A2C(state_size=state_size, action_size=action_size, num_steps=5, env_name='connect_four_v3', agent_index=id)
@@ -166,6 +165,7 @@ def load_population(path, type, state_size, action_size):
         for agent_file in os.listdir(path):
             agent_name = os.path.join(path, agent_file)
             if agent_name not in agents_ids:
+                raise ValueError
                 agents_ids[agent_name] = len(agents_ids)
             id = agents_ids[agent_name]
             agent = DQN(memory_size=10000, batch_size=64, gamma=0.99, epsilon=1, epsilon_decay=0.98,
@@ -178,6 +178,7 @@ def load_population(path, type, state_size, action_size):
         for agent_file in os.listdir(path):
             agent_name = os.path.join(path, agent_file)
             if agent_name not in agents_ids:
+                raise ValueError
                 agents_ids[agent_name] = len(agents_ids)
             id = agents_ids[agent_name]
             agent = PPO(state_size=state_size, action_size=action_size, num_steps=2048,
@@ -189,6 +190,7 @@ def load_population(path, type, state_size, action_size):
         for i in range(5):
             agent_name = f"random{i}"
             if agent_name not in agents_ids:
+                raise ValueError
                 agents_ids[agent_name] = len(agents_ids)
             id = agents_ids[agent_name]
             agent = Random(action_size=action_size, seed=0)
@@ -196,17 +198,17 @@ def load_population(path, type, state_size, action_size):
 
     return agents
 
-def partial_tournament(path, subpath):
+def partial_tournament(path, subpath, agents_ids):
     interactions = []
     env = connect_four_v3.env()
     state_size = 84
     action_size = env.action_space("player_1").n
     for subsubpath in os.listdir(os.path.join(path, subpath)):
-        pop1 = load_population(os.path.join(path, subpath, subsubpath), subpath, state_size, action_size)
+        pop1 = load_population(os.path.join(path, subpath, subsubpath), subpath, state_size, action_size, agents_ids)
 
         for subpath2 in os.listdir(path):
             for subsubpath2 in os.listdir(os.path.join(path, subpath2)):
-                pop2 = load_population(os.path.join(path, subpath2, subsubpath2), subpath2, state_size, action_size)
+                pop2 = load_population(os.path.join(path, subpath2, subsubpath2), subpath2, state_size, action_size, agents_ids)
                 print(os.path.join(path, subpath, subsubpath) + " vs. " + os.path.join(path, subpath2, subsubpath2))
                 start = datetime.datetime.now()
 
@@ -219,11 +221,22 @@ def partial_tournament(path, subpath):
 def main():
     main_path = "saved_models"
     subpaths = os.listdir(main_path)
+    agents_ids = {}
 
-    #results = [partial_tournament(main_path, subpath) for subpath in subpaths]
+    for i in range(5):
+        agents_ids[f"random{i}"] = len(agents_ids)
+
+    for subpath2 in os.listdir(main_path):
+        for subsubpath2 in os.listdir(os.path.join(main_path, subpath2)):
+            for agent_file in os.listdir(os.path.join(main_path, subpath2, subsubpath2)):
+                agents_ids[os.path.join(main_path, subpath2, subsubpath2, agent_file)] = len(agents_ids)
+
+
+    #partial_tournament(main_path, "random", agents_ids)
+    #results = [partial_tournament(main_path, subpath, agents_ids) for subpath in subpaths]
 
     with multiprocessing.Pool() as pool:
-        results = pool.starmap(partial_tournament, [(main_path, subpath) for subpath in subpaths])
+        results = pool.starmap(partial_tournament, [(main_path, subpath, agents_ids) for subpath in subpaths])
 
     json_data = {"ids" : agents_ids, "interactions" : []}
     for interacs in results:
