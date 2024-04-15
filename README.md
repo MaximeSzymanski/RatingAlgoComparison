@@ -34,4 +34,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 📫 Contact
 Maxime Szymanski - maxime.szymanski@mail.mcgill.ca
-Aurélien Bück-Kaeffer - 
+Aurélien Bück-Kaeffer - aurelien.buck-kaeffer@mail.mcgill.ca
